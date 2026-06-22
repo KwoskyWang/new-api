@@ -217,7 +217,7 @@ function Hero(props: { isAuthenticated: boolean }) {
       <MediaFrame
         media={HOME_MEDIA.hero}
         label={t('Hero media replacement slot')}
-        className='absolute inset-0 -z-10 rounded-none border-0 opacity-90'
+        className='absolute inset-0 -z-10 rounded-none border-0 opacity-100'
       />
       <div className='absolute inset-0 -z-10 bg-[radial-gradient(circle_at_65%_20%,rgba(255,255,255,0.22),transparent_18%),linear-gradient(90deg,rgba(7,8,10,0.96),rgba(7,8,10,0.62)_46%,rgba(7,8,10,0.88))]' />
 
