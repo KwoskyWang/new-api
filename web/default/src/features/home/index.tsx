@@ -53,7 +53,7 @@ const NEXT_GLM_MODEL = 'glm-5.2'
 
 const HOME_MEDIA = {
   hero: {
-    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/coding-global.mp4',
+    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/cloudSphere-1.mp4',
     type: 'video/mp4',
     format: 'MP4',
     recommendedSize: '1920x1080',
@@ -217,7 +217,7 @@ function Hero(props: { isAuthenticated: boolean }) {
       <MediaFrame
         media={HOME_MEDIA.hero}
         label={t('Hero media replacement slot')}
-        className='absolute inset-0 -z-10 rounded-none border-0 opacity-55'
+        className='absolute inset-0 -z-10 rounded-none border-0 opacity-70'
       />
       <div className='absolute inset-0 -z-10 bg-[radial-gradient(circle_at_65%_20%,rgba(255,255,255,0.22),transparent_18%),linear-gradient(90deg,rgba(7,8,10,0.96),rgba(7,8,10,0.62)_46%,rgba(7,8,10,0.88))]' />
 
