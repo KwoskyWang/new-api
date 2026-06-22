@@ -53,7 +53,7 @@ export function Hero(props: HeroProps) {
             <span>{t('Cloud Gateway for GLM and multi-model access')}</span>
           </div>
           <h1 className='text-4xl leading-[1.05] font-semibold tracking-tight text-balance md:text-6xl'>
-            {t('云镜智能')}
+            {t('云境智能')}
             <span className='text-muted-foreground block text-foreground/85'>
               {t('One API hub for GLM first, and everything around it.')}
             </span>
@@ -112,7 +112,7 @@ export function Hero(props: HeroProps) {
               <div className='absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(59,130,246,0.36),transparent_24%),radial-gradient(circle_at_72%_20%,rgba(16,185,129,0.22),transparent_20%),linear-gradient(180deg,rgba(15,23,42,0.1),rgba(15,23,42,0.75))]' />
               <img
                 src='/logo.png'
-                alt={t('云镜智能')}
+                alt={t('云境智能')}
                 className='absolute left-1/2 top-1/2 w-[42%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-85'
               />
               <div className='absolute inset-x-4 top-4 flex items-center justify-between text-[11px] text-white/70'>

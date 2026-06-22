@@ -53,7 +53,7 @@ const NEXT_GLM_MODEL = 'glm-5.2'
 
 const HOME_MEDIA = {
   hero: {
-    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/cloudSphere-2.mp4',
+    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/cloudSphere-4.mp4',
     type: 'video/mp4',
     format: 'MP4',
     recommendedSize: '1920x1080',
@@ -101,7 +101,7 @@ client = OpenAI(
 response = client.chat.completions.create(
   model="${DEFAULT_GLM_MODEL}",
   messages=[
-    {"role": "user", "content": "用一句话介绍云镜智能"}
+    {"role": "user", "content": "用一句话介绍云境智能"}
   ],
 )
 
@@ -116,7 +116,7 @@ print(response.choices[0].message.content)`,
   -d '{
     "model": "${DEFAULT_GLM_MODEL}",
     "messages": [
-      { "role": "user", "content": "Hello from 云镜智能" }
+      { "role": "user", "content": "Hello from 云境智能" }
     ],
     "stream": true
   }'`,
@@ -219,7 +219,7 @@ function Hero(props: { isAuthenticated: boolean }) {
         label={t('Hero media replacement slot')}
         className='absolute inset-0 -z-10 rounded-none border-0 opacity-100'
       />
-      <div className='absolute inset-0 -z-10 bg-[radial-gradient(circle_at_65%_20%,rgba(255,255,255,0.22),transparent_18%),linear-gradient(90deg,rgba(7,8,10,0.96),rgba(7,8,10,0.62)_46%,rgba(7,8,10,0.88))]' />
+      <div className='absolute inset-0 -z-10 bg-[radial-gradient(circle_at_65%_20%,rgba(255,255,255,0.22),transparent_18%),linear-gradient(90deg,rgba(7,8,10,0.48),rgba(7,8,10,0.31)_46%,rgba(7,8,10,0.44))]' />
 
       <div className='mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1fr_0.82fr] lg:items-end'>
         <AnimateInView className='max-w-4xl pt-8 text-white'>

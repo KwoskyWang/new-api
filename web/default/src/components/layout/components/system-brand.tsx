@@ -52,7 +52,7 @@ export function SystemBrand(props: SystemBrandProps) {
   const variant = props.variant ?? 'sidebar'
   const name =
     !status?.system_name || status.system_name === 'New API'
-      ? props.defaultName || '云镜智能'
+      ? props.defaultName || '云境智能'
       : status.system_name
   const version =
     status?.version || props.defaultVersion || t('Unknown version')

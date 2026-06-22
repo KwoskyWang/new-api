@@ -119,7 +119,7 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
 function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
   const content = (
     <span className='text-muted-foreground/45'>
-      &copy; {props.currentYear} 云镜智能
+      &copy; {props.currentYear} 云境智能
     </span>
   )
   if (props.inline) {
@@ -142,9 +142,9 @@ export function Footer(props: FooterProps) {
   } = useSystemConfig()
 
   const displayLogo = systemLogo || props.logo || '/logo.png'
-  const configuredName = systemName || props.name || '云镜智能'
+  const configuredName = systemName || props.name || '云境智能'
   const displayName =
-    configuredName === 'New API' ? '云镜智能' : configuredName
+    configuredName === 'New API' ? '云境智能' : configuredName
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 

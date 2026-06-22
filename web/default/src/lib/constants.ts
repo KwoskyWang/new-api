@@ -21,7 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
  */
 
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = '云镜智能'
+export const DEFAULT_SYSTEM_NAME = '云境智能'
 export const DEFAULT_LOGO = '/logo.png'
 
 // LocalStorage Keys
