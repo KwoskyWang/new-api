@@ -59,22 +59,22 @@ const HOME_MEDIA = {
     recommendedSize: '1920x1080',
   },
   routing: {
-    src: 'https://vz-d1573826-997.b-cdn.net/061c1c6b-a39b-4fdb-8c1a-b623b550c401/play_1080p.mp4',
-    type: 'video/mp4',
-    format: 'MP4',
+    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/gpt.jpg',
+    type: 'image/jpeg',
+    format: 'JPG',
     recommendedSize: '1920x1080',
   },
   reliability: {
-    src: 'https://vz-d1573826-997.b-cdn.net/eeaaea75-9e67-4a7e-aa33-6ed9ee1272ba/play_1080p.mp4',
-    type: 'video/mp4',
-    format: 'MP4',
+    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/deepseek.jpg',
+    type: 'image/jpeg',
+    format: 'JPG',
     recommendedSize: '1920x1080',
   },
   fallbackPoster: {
-    src: 'https://afternow.co/wp-content/uploads/2026/04/Afternow-OG-Image.gif',
-    type: 'image/gif',
-    format: 'GIF',
-    recommendedSize: '1200x630',
+    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/coding-global.mp4',
+    type: 'video/mp4',
+    format: 'MP4',
+    recommendedSize: '1920x1080',
   },
 } as const
 
@@ -493,7 +493,7 @@ function GlmAndFallback() {
   const flow = [
     [t('Client request'), 'POST /v1/chat/completions'],
     [t('Yunjing gateway'), t('Policy, quota, logs')],
-    [t('Primary route'), `${DEFAULT_GLM_MODEL} / ${NEXT_GLM_MODEL}`],
+    [t('Primary route'), '支持 GLM、Deepseek、Qwen'],
     [t('Backup route'), t('Healthy provider pool')],
   ]
 
@@ -661,15 +661,28 @@ function Faq() {
 
 function CTA(props: { isAuthenticated: boolean }) {
   const { t } = useTranslation()
+  const fallbackMedia = HOME_MEDIA.fallbackPoster
+  const isFallbackVideo = fallbackMedia.type.startsWith('video/')
 
   return (
     <section className='relative overflow-hidden bg-[#0c0d10] px-6 py-24 text-white md:py-32'>
       <div className='absolute inset-0 opacity-35'>
-        <img
-          className='size-full object-cover'
-          src={HOME_MEDIA.fallbackPoster.src}
-          alt={t('CTA media replacement slot')}
-        />
+        {isFallbackVideo ? (
+          <video
+            className='size-full object-cover'
+            src={fallbackMedia.src}
+            autoPlay
+            muted
+            loop
+            playsInline
+          />
+        ) : (
+          <img
+            className='size-full object-cover'
+            src={fallbackMedia.src}
+            alt={t('CTA media replacement slot')}
+          />
+        )}
       </div>
       <div className='absolute inset-0 bg-[linear-gradient(90deg,rgba(12,13,16,0.96),rgba(12,13,16,0.68))]' />
       <AnimateInView className='relative mx-auto max-w-5xl'>

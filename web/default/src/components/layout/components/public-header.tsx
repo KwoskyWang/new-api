@@ -101,7 +101,9 @@ export function PublicHeader(props: PublicHeaderProps) {
 
   const user = auth.user
   const isAuthenticated = !!user
-  const displaySiteName = customSiteName || systemName
+  const configuredSiteName = customSiteName || systemName
+  const displaySiteName =
+    configuredSiteName === 'New API' ? '云镜智能' : configuredSiteName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
 
   useEffect(() => {

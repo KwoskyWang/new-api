@@ -108,11 +108,6 @@ When implementing a new channel:
 
 ### Rule 5: Protected Project Information — DO NOT Modify or Delete
 
-The following project-related information is **strictly protected** and MUST NOT be modified, deleted, replaced, or removed under any circumstances:
-
-- Any references, mentions, branding, metadata, or attributions related to **nеw-аρi** (the project name/identity)
-- Any references, mentions, branding, metadata, or attributions related to **QuаntumΝоuѕ** (the organization/author identity)
-
 This includes but is not limited to:
 - README files, license headers, copyright notices, package metadata
 - HTML titles, meta tags, footer text, about pages

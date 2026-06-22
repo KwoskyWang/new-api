@@ -58,6 +58,11 @@ function toNumber(value: unknown, fallback: number): number {
   return fallback
 }
 
+function normalizeSystemName(name: string | undefined): string {
+  if (!name || name === 'New API') return DEFAULT_SYSTEM_NAME
+  return name
+}
+
 /**
  * Map `/api/status` response data to our persisted system config structure
  */
@@ -92,7 +97,7 @@ export function mapStatusDataToConfig(
   }
 
   return {
-    systemName: data.system_name || DEFAULT_SYSTEM_NAME,
+    systemName: normalizeSystemName(data.system_name),
     logo: data.logo || DEFAULT_LOGO,
     footerHtml: data.footer_html,
     demoSiteEnabled: data.demo_site_enabled,
