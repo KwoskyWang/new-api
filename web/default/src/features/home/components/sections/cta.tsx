@@ -23,61 +23,52 @@ import { Button } from '@/components/ui/button'
 import { AnimateInView } from '@/components/animate-in-view'
 
 interface CTAProps {
-  className?: string
   isAuthenticated?: boolean
 }
 
 export function CTA(props: CTAProps) {
   const { t } = useTranslation()
 
-  if (props.isAuthenticated) {
-    return null
-  }
+  if (props.isAuthenticated) return null
 
   return (
-    <section className='relative z-10 overflow-hidden px-6 py-24 md:py-32'>
-      {/* Gradient mesh background */}
-      <div
-        aria-hidden
-        className='absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
-        style={{
-          background: [
-            'radial-gradient(ellipse 50% 50% at 30% 50%, oklch(0.7 0.15 250 / 70%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 70% 40%, oklch(0.65 0.12 200 / 50%) 0%, transparent 70%)',
-          ].join(', '),
-        }}
-      />
-
-      <AnimateInView
-        className='mx-auto max-w-2xl text-center'
-        animation='scale-in'
-      >
-        <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-4xl'>
-          {t('Ready to simplify')}
-          <br />
-          <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('your AI integration?')}
-          </span>
-        </h2>
-        <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
-          {t(
-            'Deploy your own gateway and start routing requests through your configured upstream services.'
-          )}
-        </p>
-        <div className='mt-8 flex items-center justify-center gap-3'>
-          <Button className='group rounded-lg' render={<Link to='/sign-up' />}>
-            {t('Get Started')}
-            <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-          </Button>
-          <Button
-            variant='outline'
-            className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
-            render={<Link to='/pricing' />}
-          >
-            {t('View Pricing')}
-          </Button>
-        </div>
-      </AnimateInView>
+    <section className='relative z-10 px-6 py-20 md:py-28'>
+      <div className='mx-auto max-w-4xl'>
+        <AnimateInView animation='scale-in' className='text-center'>
+          <div className='glass-3 border-border/50 rounded-3xl border px-6 py-10 md:px-10 md:py-14'>
+            <p className='text-muted-foreground text-xs font-medium uppercase tracking-[0.28em]'>
+              {t('Start here')}
+            </p>
+            <h2 className='mt-4 text-3xl leading-tight font-semibold tracking-tight md:text-5xl'>
+              {t('Bring your homepage up to the level of your product.')}
+            </h2>
+            <p className='text-muted-foreground mx-auto mt-4 max-w-2xl text-sm leading-6 md:text-base'>
+              {t(
+                'The backend stays untouched. The navigation stays governed by your admin settings. The homepage gets a richer story.'
+              )}
+            </p>
+            <div className='mt-8 flex flex-wrap justify-center gap-3'>
+              <Button size='lg' render={<Link to='/sign-up' />}>
+                {t('Start now')}
+                <ArrowRight className='ml-1.5' />
+              </Button>
+              <Button
+                size='lg'
+                variant='outline'
+                render={
+                  <a
+                    href='https://docs.newapi.pro/en/docs'
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  />
+                }
+              >
+                {t('Read the docs')}
+              </Button>
+            </div>
+          </div>
+        </AnimateInView>
+      </div>
     </section>
   )
 }

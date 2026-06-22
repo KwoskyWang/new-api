@@ -22,21 +22,12 @@ import { useTranslation } from 'react-i18next'
 interface CounterProps {
   end: number
   suffix?: string
-  prefix?: string
   duration?: number
-  decimals?: number
 }
 
-function Counter(props: CounterProps) {
-  const { end, suffix = '', prefix = '', duration = 1600, decimals = 0 } = props
+function Counter({ end, suffix = '', duration = 1600 }: CounterProps) {
   const ref = useRef<HTMLSpanElement>(null)
   const startedRef = useRef(false)
-
-  const formatValue = useCallback(
-    (v: number) =>
-      decimals > 0 ? v.toFixed(decimals) : Math.round(v).toLocaleString(),
-    [decimals]
-  )
 
   const animate = useCallback(() => {
     const el = ref.current
@@ -45,21 +36,15 @@ function Counter(props: CounterProps) {
     const step = (now: number) => {
       const progress = Math.min((now - start) / duration, 1)
       const eased = 1 - Math.pow(1 - progress, 3)
-      el.textContent = `${prefix}${formatValue(eased * end)}${suffix}`
+      el.textContent = `${Math.round(eased * end)}${suffix}`
       if (progress < 1) requestAnimationFrame(step)
     }
     requestAnimationFrame(step)
-  }, [end, duration, prefix, suffix, formatValue])
+  }, [duration, end, suffix])
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
-
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    if (mq.matches) {
-      el.textContent = `${prefix}${formatValue(end)}${suffix}`
-      return
-    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -69,60 +54,42 @@ function Counter(props: CounterProps) {
           observer.unobserve(el)
         }
       },
-      { threshold: 0.5 }
+      { threshold: 0.4 }
     )
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [animate, end, prefix, suffix, formatValue])
+  }, [animate])
 
-  return (
-    <span ref={ref} className='tabular-nums'>
-      {prefix}0{suffix}
-    </span>
-  )
+  return <span ref={ref}>0{suffix}</span>
 }
 
-interface StatsProps {
-  className?: string
-}
-
-interface StatItem {
-  end: number
-  suffix: string
-  label: string
-  decimals?: number
-}
-
-export function Stats(_props: StatsProps) {
+export function Stats() {
   const { t } = useTranslation()
 
-  const stats: StatItem[] = [
+  const stats = [
     { end: 50, suffix: '+', label: t('upstream services integrated') },
-    { end: 100, suffix: '+', label: t('model billing support') },
-    { end: 50, suffix: '+', label: t('compatible API routes') },
-    { end: 10, suffix: '+', label: t('scheduling controls') },
+    { end: 100, suffix: '+', label: t('compatible API routes') },
+    { end: 24, suffix: '/7', label: t('monitoring and fallback coverage') },
+    { end: 1, suffix: '', label: t('GLM-first entry point') },
   ]
 
   return (
-    <div className='border-border/40 bg-muted/10 relative z-10 border-y'>
-      <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
-        <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
+    <section className='relative z-10 px-6 py-8'>
+      <div className='mx-auto max-w-6xl'>
+        <div className='border-border/50 bg-background/70 grid gap-4 rounded-2xl border px-5 py-5 md:grid-cols-4 md:px-6'>
           {stats.map((s) => (
-            <div
-              key={s.label}
-              className='flex flex-col items-center text-center'
-            >
-              <span className='text-2xl font-bold tracking-tight md:text-3xl'>
-                <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
-              </span>
-              <span className='text-muted-foreground mt-1.5 text-xs'>
+            <div key={s.label} className='min-w-0'>
+              <div className='text-2xl font-semibold tabular-nums md:text-3xl'>
+                <Counter end={s.end} suffix={s.suffix} />
+              </div>
+              <div className='text-muted-foreground mt-1 text-xs leading-5'>
                 {s.label}
-              </span>
+              </div>
             </div>
           ))}
         </div>
       </div>
-    </div>
+    </section>
   )
 }
