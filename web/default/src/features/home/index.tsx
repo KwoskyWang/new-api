@@ -53,7 +53,7 @@ const NEXT_GLM_MODEL = 'glm-5.2'
 
 const HOME_MEDIA = {
   hero: {
-    src: 'https://vz-d1573826-997.b-cdn.net/0fca1c2f-c289-4ae7-bc26-2c14844b9d8c/play_1080p.mp4',
+    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/coding-global.mp4',
     type: 'video/mp4',
     format: 'MP4',
     recommendedSize: '1920x1080',
@@ -71,7 +71,7 @@ const HOME_MEDIA = {
     recommendedSize: '1920x1080',
   },
   fallbackPoster: {
-    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/coding-global.mp4',
+    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/screen-coding.mp4',
     type: 'video/mp4',
     format: 'MP4',
     recommendedSize: '1920x1080',
