@@ -30,6 +30,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getStatus } from '@/lib/api'
 import '@/lib/dayjs'
+import { DEFAULT_LOGO, DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
@@ -114,19 +115,27 @@ const rootElement = document.getElementById('root')!
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
     const apply = (name: string) => {
-      document.title = name
+      const displayName = name === 'New API' ? DEFAULT_SYSTEM_NAME : name
+      document.title = displayName
       const metaTitle = document.querySelector(
         'meta[name="title"]'
       ) as HTMLMetaElement | null
-      if (metaTitle) metaTitle.setAttribute('content', name)
+      if (metaTitle) metaTitle.setAttribute('content', displayName)
     }
+    const normalizeLogo = (logo: unknown) =>
+      !logo ||
+      logo === '/logo.png' ||
+      logo === 'https://ispace-ai.com/ispace-logo.png'
+        ? DEFAULT_LOGO
+        : String(logo)
+
     // Cache-first
     try {
       const saved = localStorage.getItem('status')
       if (saved) {
         const s = JSON.parse(saved)
         if (s?.system_name) apply(s.system_name)
-        if (s?.logo) applyFaviconToDom(s.logo)
+        applyFaviconToDom(normalizeLogo(s?.logo))
       }
     } catch {
       /* empty */
@@ -142,7 +151,7 @@ const rootElement = document.getElementById('root')!
             /* empty */
           }
         }
-        if (s?.logo) applyFaviconToDom(s.logo as string)
+        applyFaviconToDom(normalizeLogo(s?.logo))
       })
       .catch(() => {
         /* empty */

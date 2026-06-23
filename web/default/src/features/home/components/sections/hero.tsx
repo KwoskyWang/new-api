@@ -111,7 +111,7 @@ export function Hero(props: HeroProps) {
             <div className='relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#050816]'>
               <div className='absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(59,130,246,0.36),transparent_24%),radial-gradient(circle_at_72%_20%,rgba(16,185,129,0.22),transparent_20%),linear-gradient(180deg,rgba(15,23,42,0.1),rgba(15,23,42,0.75))]' />
               <img
-                src='/logo.png'
+                src='/ispace-logo.png'
                 alt={t('云境智能')}
                 className='absolute left-1/2 top-1/2 w-[42%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-85'
               />

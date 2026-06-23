@@ -53,25 +53,25 @@ const NEXT_GLM_MODEL = 'glm-5.2'
 
 const HOME_MEDIA = {
   hero: {
-    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/cloudSphere-4.mp4',
+    src: '/home/cloudSphere-4.mp4',
     type: 'video/mp4',
     format: 'MP4',
     recommendedSize: '1920x1080',
   },
   routing: {
-    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/gpt.jpg',
+    src: '/home/gpt.jpg',
     type: 'image/jpeg',
     format: 'JPG',
     recommendedSize: '1920x1080',
   },
   reliability: {
-    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/deepseek.jpg',
+    src: '/home/deepseek.jpg',
     type: 'image/jpeg',
     format: 'JPG',
     recommendedSize: '1920x1080',
   },
   fallbackPoster: {
-    src: 'https://ispace-resources-1304207348.cos.ap-hongkong.myqcloud.com/screen-coding.mp4',
+    src: '/home/screen-coding.mp4',
     type: 'video/mp4',
     format: 'MP4',
     recommendedSize: '1920x1080',
@@ -191,12 +191,6 @@ function MediaFrame(props: {
         />
       )}
       <div className='absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18),rgba(0,0,0,0.64))]' />
-      <div className='absolute inset-x-5 bottom-5 flex items-center justify-between gap-3 text-white'>
-        <span className='text-sm font-medium'>{props.label}</span>
-        <span className='rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] backdrop-blur'>
-          {props.media.format} · {props.media.recommendedSize}
-        </span>
-      </div>
     </div>
   )
 }

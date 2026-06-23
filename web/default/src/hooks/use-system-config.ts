@@ -63,6 +63,17 @@ function normalizeSystemName(name: string | undefined): string {
   return name
 }
 
+function normalizeLogo(logo: string | undefined): string {
+  if (
+    !logo ||
+    logo === '/logo.png' ||
+    logo === 'https://ispace-ai.com/ispace-logo.png'
+  ) {
+    return DEFAULT_LOGO
+  }
+  return logo
+}
+
 /**
  * Map `/api/status` response data to our persisted system config structure
  */
@@ -98,7 +109,7 @@ export function mapStatusDataToConfig(
 
   return {
     systemName: normalizeSystemName(data.system_name),
-    logo: data.logo || DEFAULT_LOGO,
+    logo: normalizeLogo(data.logo),
     footerHtml: data.footer_html,
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,

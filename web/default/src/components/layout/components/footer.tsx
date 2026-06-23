@@ -141,7 +141,7 @@ export function Footer(props: FooterProps) {
     demoSiteEnabled,
   } = useSystemConfig()
 
-  const displayLogo = systemLogo || props.logo || '/logo.png'
+  const displayLogo = systemLogo || props.logo || '/ispace-logo.png'
   const configuredName = systemName || props.name || '云境智能'
   const displayName =
     configuredName === 'New API' ? '云境智能' : configuredName
