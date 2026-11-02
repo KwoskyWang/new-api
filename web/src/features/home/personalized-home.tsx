@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Activity,
@@ -31,17 +30,14 @@ import {
   ShieldCheck,
   WalletCards,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { AnimateInView } from '@/components/animate-in-view'
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const API_BASE_URL = 'https://api.ispace-ai.cloud/v1'
 const DEFAULT_GLM_MODEL = 'glm-5.1'
@@ -221,7 +217,9 @@ function Hero(props: { isAuthenticated: boolean }) {
             {t('GLM-first multi-model API gateway')}
           </Badge>
           <h1 className='max-w-4xl text-5xl leading-[0.96] font-semibold tracking-tight text-balance md:text-7xl lg:text-8xl'>
-            {t('Stable access to GLM and mainstream models through one API Hub.')}
+            {t(
+              'Stable access to GLM and mainstream models through one API Hub.'
+            )}
           </h1>
           <p className='mt-7 max-w-2xl text-base leading-7 text-white/72 md:text-lg'>
             {t(
@@ -287,11 +285,11 @@ function TrustBar() {
   ]
 
   return (
-    <section className='border-y border-border/60 bg-background px-6 py-5'>
-      <div className='mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground'>
+    <section className='border-border/60 bg-background border-y px-6 py-5'>
+      <div className='text-muted-foreground mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm'>
         {items.map((item) => (
           <span key={item} className='inline-flex items-center gap-2'>
-            <CheckCircle2 className='size-4 text-foreground/70' />
+            <CheckCircle2 className='text-foreground/70 size-4' />
             {item}
           </span>
         ))}
@@ -345,7 +343,9 @@ function RoutingStrategy() {
             {t('Dynamic routing strategy')}
           </p>
           <h2 className='mt-5 text-4xl leading-none font-semibold tracking-tight text-balance md:text-6xl'>
-            {t('Route for uptime, latency, and cost before your users notice anything.')}
+            {t(
+              'Route for uptime, latency, and cost before your users notice anything.'
+            )}
           </h2>
           <p className='mt-6 max-w-xl text-base leading-7 text-white/62'>
             {t(
@@ -394,17 +394,17 @@ function DeveloperExperience() {
   const activeSnippet = CODE_SNIPPETS[activeTab]
 
   return (
-    <section className='relative overflow-hidden bg-background px-6 py-24 md:py-32'>
+    <section className='bg-background relative overflow-hidden px-6 py-24 md:py-32'>
       <div className='pointer-events-none absolute inset-x-0 top-0 h-40 bg-[linear-gradient(180deg,rgba(12,13,16,0.08),transparent)]' />
       <div className='mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center'>
         <AnimateInView>
-          <p className='text-xs font-medium tracking-[0.3em] text-muted-foreground uppercase'>
+          <p className='text-muted-foreground text-xs font-medium tracking-[0.3em] uppercase'>
             {t('Built for developers')}
           </p>
           <h2 className='mt-5 text-4xl leading-tight font-semibold tracking-tight md:text-6xl'>
             {t('Keep the SDK. Change only the endpoint.')}
           </h2>
-          <p className='mt-5 max-w-xl text-base leading-7 text-muted-foreground'>
+          <p className='text-muted-foreground mt-5 max-w-xl text-base leading-7'>
             {t(
               'OpenAI SDK, cURL, Python, and Node.js examples live in one practical console. The default examples use GLM 5.1 and GLM 5.2 with your production API base URL.'
             )}
@@ -417,7 +417,7 @@ function DeveloperExperience() {
               t('No backend route changes required'),
             ].map((item) => (
               <div key={item} className='flex items-center gap-2 text-sm'>
-                <CheckCircle2 className='size-4 text-muted-foreground' />
+                <CheckCircle2 className='text-muted-foreground size-4' />
                 <span>{item}</span>
               </div>
             ))}
@@ -428,9 +428,9 @@ function DeveloperExperience() {
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as CodeTab)}
-            className='rounded-3xl border border-border bg-card p-3 shadow-[0_35px_120px_-70px_rgba(15,23,42,0.45)]'
+            className='border-border bg-card rounded-3xl border p-3 shadow-[0_35px_120px_-70px_rgba(15,23,42,0.45)]'
           >
-            <div className='flex flex-col gap-3 border-b border-border px-2 pb-3 md:flex-row md:items-center md:justify-between'>
+            <div className='border-border flex flex-col gap-3 border-b px-2 pb-3 md:flex-row md:items-center md:justify-between'>
               <TabsList className='h-auto flex-wrap justify-start'>
                 {(Object.keys(CODE_SNIPPETS) as CodeTab[]).map((key) => (
                   <TabsTrigger key={key} value={key} className='px-3 py-1.5'>
@@ -438,7 +438,11 @@ function DeveloperExperience() {
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <CopyButton size='sm' variant='outline' value={activeSnippet.code}>
+              <CopyButton
+                size='sm'
+                variant='outline'
+                value={activeSnippet.code}
+              >
                 {t('Copy')}
               </CopyButton>
             </div>
@@ -449,7 +453,7 @@ function DeveloperExperience() {
                 <TabsContent key={key} value={key} className='m-0'>
                   <div className='flex items-center justify-between gap-3 px-2 py-4'>
                     <div>
-                      <p className='text-xs text-muted-foreground'>
+                      <p className='text-muted-foreground text-xs'>
                         {t('Base URL')}: {API_BASE_URL}
                       </p>
                       <h3 className='mt-1 text-lg font-semibold'>
@@ -532,22 +536,30 @@ function Operations() {
     {
       icon: <Activity className='size-5' />,
       title: t('Channel health'),
-      desc: t('Monitor provider availability and keep route decisions grounded in real status.'),
+      desc: t(
+        'Monitor provider availability and keep route decisions grounded in real status.'
+      ),
     },
     {
       icon: <BarChart3 className='size-5' />,
       title: t('Usage logs'),
-      desc: t('Trace requests, usage, latency, and failures from one operational surface.'),
+      desc: t(
+        'Trace requests, usage, latency, and failures from one operational surface.'
+      ),
     },
     {
       icon: <WalletCards className='size-5' />,
       title: t('Quota and billing'),
-      desc: t('Connect model usage to quota, settlement, group pricing, and account balance.'),
+      desc: t(
+        'Connect model usage to quota, settlement, group pricing, and account balance.'
+      ),
     },
     {
       icon: <LockKeyhole className='size-5' />,
       title: t('Access control'),
-      desc: t('Use groups, tokens, model permissions, and limits to govern real production traffic.'),
+      desc: t(
+        'Use groups, tokens, model permissions, and limits to govern real production traffic.'
+      ),
     },
   ]
 
@@ -555,13 +567,13 @@ function Operations() {
     <section className='bg-background px-6 py-24 md:py-32'>
       <div className='mx-auto max-w-7xl'>
         <AnimateInView className='mb-12 max-w-3xl'>
-          <p className='text-xs font-medium tracking-[0.3em] text-muted-foreground uppercase'>
+          <p className='text-muted-foreground text-xs font-medium tracking-[0.3em] uppercase'>
             {t('Operations and observability')}
           </p>
           <h2 className='mt-5 text-4xl leading-tight font-semibold tracking-tight md:text-6xl'>
             {t('The gateway is also the control plane.')}
           </h2>
-          <p className='mt-5 text-base leading-7 text-muted-foreground'>
+          <p className='text-muted-foreground mt-5 text-base leading-7'>
             {t(
               'The homepage should reveal the serious parts underneath: logs, billing, rate limits, health checks, and model operations.'
             )}
@@ -574,13 +586,13 @@ function Operations() {
               key={item.title}
               delay={index * 80}
               animation='fade-up'
-              className='rounded-2xl border border-border bg-card p-5'
+              className='border-border bg-card rounded-2xl border p-5'
             >
-              <div className='mb-5 flex size-11 items-center justify-center rounded-xl border border-border bg-muted/50'>
+              <div className='border-border bg-muted/50 mb-5 flex size-11 items-center justify-center rounded-xl border'>
                 {item.icon}
               </div>
               <h3 className='text-lg font-semibold'>{item.title}</h3>
-              <p className='mt-3 text-sm leading-6 text-muted-foreground'>
+              <p className='text-muted-foreground mt-3 text-sm leading-6'>
                 {item.desc}
               </p>
             </AnimateInView>
@@ -596,19 +608,27 @@ function Faq() {
   const faqs = [
     [
       t('Is it compatible with the OpenAI SDK?'),
-      t('Yes. In most cases you only replace the base URL and API key, then keep your existing SDK call pattern.'),
+      t(
+        'Yes. In most cases you only replace the base URL and API key, then keep your existing SDK call pattern.'
+      ),
     ],
     [
       t('What happens if an upstream provider fails?'),
-      t('The gateway can retry and move requests to configured backup channels based on health and policy.'),
+      t(
+        'The gateway can retry and move requests to configured backup channels based on health and policy.'
+      ),
     ],
     [
       t('Can GLM be the default model family?'),
-      t('Yes. The homepage and examples use GLM 5.1 and GLM 5.2 first, while keeping other providers available.'),
+      t(
+        'Yes. The homepage and examples use GLM 5.1 and GLM 5.2 first, while keeping other providers available.'
+      ),
     ],
     [
       t('Can routing help control cost?'),
-      t('Yes. Group pricing, model ratios, provider selection, and fallback rules can work together to optimize cost.'),
+      t(
+        'Yes. Group pricing, model ratios, provider selection, and fallback rules can work together to optimize cost.'
+      ),
     ],
   ]
 
@@ -616,7 +636,7 @@ function Faq() {
     <section className='bg-muted/25 px-6 py-24 md:py-32'>
       <div className='mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.8fr_1.2fr]'>
         <AnimateInView>
-          <p className='text-xs font-medium tracking-[0.3em] text-muted-foreground uppercase'>
+          <p className='text-muted-foreground text-xs font-medium tracking-[0.3em] uppercase'>
             {t('FAQ')}
           </p>
           <h2 className='mt-5 text-4xl leading-tight font-semibold tracking-tight md:text-6xl'>
@@ -629,10 +649,10 @@ function Faq() {
             <AnimateInView
               key={q}
               animation='fade-up'
-              className='rounded-2xl border border-border bg-background p-6'
+              className='border-border bg-background rounded-2xl border p-6'
             >
               <h3 className='text-lg font-semibold'>{q}</h3>
-              <p className='mt-3 text-sm leading-6 text-muted-foreground'>
+              <p className='text-muted-foreground mt-3 text-sm leading-6'>
                 {a}
               </p>
             </AnimateInView>
@@ -715,15 +735,15 @@ function CTA(props: { isAuthenticated: boolean }) {
 
 export function PersonalizedHome(props: { isAuthenticated: boolean }) {
   return (
-      <main className='relative overflow-x-clip'>
-        <Hero isAuthenticated={props.isAuthenticated} />
-        <TrustBar />
-        <RoutingStrategy />
-        <DeveloperExperience />
-        <GlmAndFallback />
-        <Operations />
-        <Faq />
-        <CTA isAuthenticated={props.isAuthenticated} />
-      </main>
+    <main className='relative overflow-x-clip'>
+      <Hero isAuthenticated={props.isAuthenticated} />
+      <TrustBar />
+      <RoutingStrategy />
+      <DeveloperExperience />
+      <GlmAndFallback />
+      <Operations />
+      <Faq />
+      <CTA isAuthenticated={props.isAuthenticated} />
+    </main>
   )
 }

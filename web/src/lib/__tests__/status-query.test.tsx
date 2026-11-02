@@ -95,15 +95,20 @@ describe('shared status query deduplication', () => {
     {},
     { system_name: 'New API', logo: '/logo.png' },
     { system_name: 'New API', logo: 'https://ispace-ai.com/ispace-logo.png' },
-  ])('maps default or legacy branding to the personalized site for %j', (status) => {
-    expect(mapStatusDataToConfig(status)).toMatchObject({
-      systemName: '云境智能',
-      logo: '/ispace-logo.png',
-    })
-  })
+  ])(
+    'maps default or legacy branding to the personalized site for %j',
+    (status) => {
+      expect(mapStatusDataToConfig(status)).toMatchObject({
+        systemName: '云境智能',
+        logo: '/ispace-logo.png',
+      })
+    }
+  )
 
   test('preserves administrator-provided branding', () => {
-    expect(mapStatusDataToConfig({ system_name: 'My gateway', logo: '/custom.svg' })).toMatchObject({
+    expect(
+      mapStatusDataToConfig({ system_name: 'My gateway', logo: '/custom.svg' })
+    ).toMatchObject({
       systemName: 'My gateway',
       logo: '/custom.svg',
     })
