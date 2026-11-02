@@ -38,6 +38,7 @@ import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 
 const API_BASE_URL = 'https://api.ispace-ai.cloud/v1'
 const DEFAULT_GLM_MODEL = 'glm-5.1'
@@ -164,7 +165,10 @@ function MediaFrame(props: {
 
   return (
     <div
-      className={`relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#05070d] shadow-[0_40px_140px_-70px_rgba(15,23,42,0.95)] ${props.className ?? ''}`}
+      className={cn(
+        'relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#05070d] shadow-[0_40px_140px_-70px_rgba(15,23,42,0.95)]',
+        props.className
+      )}
     >
       {isVideo ? (
         <video
