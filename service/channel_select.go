@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -12,11 +13,35 @@ import (
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	Retry        *int
-	resetNextTry bool
+	Ctx           *gin.Context
+	TokenGroup    string
+	ModelName     string
+	Retry         *int
+	Failover      model.ModelFailoverConfig
+	failoverGroup string
+	resetNextTry  bool
+}
+
+func NewRelayRetryParam(c *gin.Context, tokenGroup, modelName string) *RetryParam {
+	group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	if autoGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup); autoGroup != "" {
+		group = autoGroup
+	}
+	if group == "" {
+		group = tokenGroup
+	}
+	return &RetryParam{
+		Ctx: c, TokenGroup: tokenGroup, ModelName: modelName,
+		Retry: common.GetPointer(0), Failover: model.GetModelFailoverConfig(modelName),
+		failoverGroup: group,
+	}
+}
+
+func (p *RetryParam) GetRetryLimit() int {
+	if p.Failover.Enabled {
+		return p.Failover.MaxRetries
+	}
+	return common.RetryTimes
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -81,6 +106,20 @@ func (p *RetryParam) ResetRetryNextTry() {
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	if param.Failover.Enabled {
+		// Keep auto-group failover in the group authorized and selected by the
+		// distributor. Do not let retry-counter resets extend this model's limit.
+		group := param.failoverGroup
+		used := param.Ctx.GetStringSlice("use_channel")
+		excluded := make([]int, 0, len(used))
+		for _, value := range used {
+			if id, err := strconv.Atoi(value); err == nil {
+				excluded = append(excluded, id)
+			}
+		}
+		channel, err := model.GetModelFailoverChannel(group, param.ModelName, excluded)
+		return channel, group, err
+	}
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup

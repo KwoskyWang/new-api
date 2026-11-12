@@ -54,6 +54,10 @@ web/             — Frontend themes container
 
 ## Rules
 
+### Model-level Channel Failover
+
+Model metadata can opt into per-model channel failover. See `docs/model-channel-failover.md` for configuration and safety boundaries. Preserve the original model/group, exclude channels already attempted in the request, respect pinned channels and affinity restrictions, and never retry after the response starts. Models with failover disabled retain the existing global retry behavior.
+
 ### Rule 1: JSON Package — Use `common/json.go`
 
 All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:

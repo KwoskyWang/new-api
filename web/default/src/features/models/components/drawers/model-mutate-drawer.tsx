@@ -75,10 +75,13 @@ import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
+import { modelFailoverFormSchema } from '../../lib/model-failover'
 import type { Model } from '../../types'
+import { ModelFailoverSection } from './model-failover-section'
 
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
+  ...modelFailoverFormSchema.shape,
   id: z.number().optional(),
   model_name: z.string().min(1, 'Model name is required'),
   description: z.string(),
@@ -210,6 +213,8 @@ export function ModelMutateDrawer({
       name_rule: 0,
       status: true,
       sync_official: true,
+      failover_enabled: false,
+      failover_max_retries: 2,
       price: '',
       ratio: '',
       cacheRatio: '',
@@ -269,6 +274,8 @@ export function ModelMutateDrawer({
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
+        failover_enabled: model.failover_enabled ?? false,
+        failover_max_retries: model.failover_max_retries || 2,
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -373,6 +380,8 @@ export function ModelMutateDrawer({
         name_rule: 0,
         status: true,
         sync_official: true,
+        failover_enabled: false,
+        failover_max_retries: 2,
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -594,6 +603,11 @@ export function ModelMutateDrawer({
               : 'Model created successfully'
           )
           queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+          if (isEditing) {
+            queryClient.invalidateQueries({
+              queryKey: modelsQueryKeys.detail(currentRow!.id),
+            })
+          }
           queryClient.invalidateQueries({ queryKey: ['system-options'] })
           onOpenChange(false)
         } else {
@@ -825,6 +839,8 @@ export function ModelMutateDrawer({
             </div>
 
             <Separator />
+
+            <ModelFailoverSection />
 
             {/* Endpoints Configuration */}
             <div className='space-y-4'>

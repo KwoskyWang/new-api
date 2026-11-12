@@ -43,6 +43,8 @@ export interface Model {
   endpoints?: string
   status: number
   sync_official: number
+  failover_enabled?: boolean
+  failover_max_retries?: number
   created_time: number
   updated_time: number
   name_rule: number

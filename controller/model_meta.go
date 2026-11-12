@@ -88,6 +88,10 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiErrorMsg(c, "模型名称不能为空")
 		return
 	}
+	if err := model.ValidateModelFailover(&m); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	// 名称冲突检查
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
 		common.ApiError(c, err)
@@ -109,11 +113,17 @@ func CreateModelMeta(c *gin.Context) {
 func UpdateModelMeta(c *gin.Context) {
 	statusOnly := c.Query("status_only") == "true"
 
-	var m model.Model
-	if err := c.ShouldBindJSON(&m); err != nil {
+	// Optional fields keep older clients from clearing failover settings.
+	var request struct {
+		model.Model
+		FailoverEnabled    *bool `json:"failover_enabled"`
+		FailoverMaxRetries *int  `json:"failover_max_retries"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	m := request.Model
 	if m.Id == 0 {
 		common.ApiErrorMsg(c, "缺少模型 ID")
 		return
@@ -126,6 +136,23 @@ func UpdateModelMeta(c *gin.Context) {
 			return
 		}
 	} else {
+		var existing model.Model
+		if err := model.DB.First(&existing, m.Id).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		m.FailoverEnabled = existing.FailoverEnabled
+		m.FailoverMaxRetries = existing.FailoverMaxRetries
+		if request.FailoverEnabled != nil {
+			m.FailoverEnabled = *request.FailoverEnabled
+		}
+		if request.FailoverMaxRetries != nil {
+			m.FailoverMaxRetries = *request.FailoverMaxRetries
+		}
+		if err := model.ValidateModelFailover(&m); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		// 名称冲突检查
 		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
 			common.ApiError(c, err)
