@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { SideDrawerSection } from '@/components/drawer-layout'
 import {
   modelFailoverFormSchema,
   type ModelFailoverFormValues,
@@ -42,7 +41,7 @@ export function ModelFailoverSection() {
   const enabled = useWatch({ control: form.control, name: 'failover_enabled' })
 
   return (
-    <SideDrawerSection>
+    <div className='space-y-4'>
       <FieldSet>
         <FieldLegend variant='label'>{t('Channel Failover')}</FieldLegend>
         <FieldGroup>
@@ -124,6 +123,6 @@ export function ModelFailoverSection() {
           )}
         </FieldGroup>
       </FieldSet>
-    </SideDrawerSection>
+    </div>
   )
 }
