@@ -2474,8 +2474,18 @@ export function ChannelMutateDrawer({
                                   type='number'
                                   placeholder='0'
                                   {...field}
+                                  value={
+                                    field.value === undefined ||
+                                    field.value === null
+                                      ? ''
+                                      : field.value
+                                  }
                                   onChange={(e) =>
-                                    field.onChange(Number(e.target.value))
+                                    field.onChange(
+                                      e.target.value === ''
+                                        ? undefined
+                                        : Number(e.target.value)
+                                    )
                                   }
                                 />
                               </FormControl>
@@ -2498,8 +2508,18 @@ export function ChannelMutateDrawer({
                                   type='number'
                                   placeholder='0'
                                   {...field}
+                                  value={
+                                    field.value === undefined ||
+                                    field.value === null
+                                      ? ''
+                                      : field.value
+                                  }
                                   onChange={(e) =>
-                                    field.onChange(Number(e.target.value))
+                                    field.onChange(
+                                      e.target.value === ''
+                                        ? undefined
+                                        : Number(e.target.value)
+                                    )
                                   }
                                 />
                               </FormControl>
