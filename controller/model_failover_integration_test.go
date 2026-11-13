@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -32,11 +33,20 @@ func TestRelayFailoverRecoveryHTTP(t *testing.T) {
 	originalLogConsume, originalBatch := common.LogConsumeEnabled, common.BatchUpdateEnabled
 	originalPrices := ratio_setting.ModelPrice2JSONString()
 	originalFreePreConsume := operation_setting.GetQuotaSetting().EnableFreeModelPreConsume
+	originalPerfMetricsEnabled := perf_metrics_setting.GetSetting().Enabled
 	common.RetryTimes = 0
 	constant.CountToken, constant.ErrorLogEnabled = false, false
 	constant.StreamingTimeout = 5
 	common.LogConsumeEnabled, common.BatchUpdateEnabled = false, false
 	operation_setting.GetQuotaSetting().EnableFreeModelPreConsume = false
+	// Disable async performance-metrics sampling. Otherwise the fire-and-forget
+	// sampling goroutine spawned after a successful relay can outlive this test and
+	// read global config (e.g. common.RedisEnabled) concurrently with the next
+	// test's setup that writes it, producing a data race.
+	// 禁用异步性能指标采样。否则 relay 成功后派生的 fire-and-forget 采样 goroutine
+	// 可能超出本测试生命周期，在下一个测试写入全局配置（如 common.RedisEnabled）时
+	// 并发读取它，产生数据竞争。
+	perf_metrics_setting.SetEnabled(false)
 	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"failover-http":0}`))
 	service.InitHttpClient()
 	t.Cleanup(func() {
@@ -45,6 +55,7 @@ func TestRelayFailoverRecoveryHTTP(t *testing.T) {
 		constant.StreamingTimeout = originalStreamingTimeout
 		common.LogConsumeEnabled, common.BatchUpdateEnabled = originalLogConsume, originalBatch
 		operation_setting.GetQuotaSetting().EnableFreeModelPreConsume = originalFreePreConsume
+		perf_metrics_setting.SetEnabled(originalPerfMetricsEnabled)
 		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(originalPrices))
 		model.InvalidateModelFailoverCache()
 	})

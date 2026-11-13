@@ -155,3 +155,56 @@ func TestGetModelFailoverChannel(t *testing.T) {
 		})
 	}
 }
+
+// TestGetModelFailoverChannelZeroWeightExcluded verifies that failover shares the
+// same weight-0 semantics as the primary selection path: a weight-0 channel is
+// excluded from selection as long as a positive-weight channel exists in the
+// same priority layer, and is only used when it is the sole remaining candidate.
+// 验证 failover 与主选择路径的权重 0 语义一致：只要同优先级层存在权重 > 0 的渠道，
+// 权重 0 的渠道会被排除；仅当它是唯一剩余候选时才会被使用。
+func TestGetModelFailoverChannelZeroWeightExcluded(t *testing.T) {
+	originalCacheEnabled := common.MemoryCacheEnabled
+	t.Cleanup(func() { common.MemoryCacheEnabled = originalCacheEnabled })
+	for _, cached := range []bool{false, true} {
+		name := "database"
+		if cached {
+			name = "memory"
+		}
+		t.Run(name, func(t *testing.T) {
+			clearPreferredOwnerTables(t)
+			t.Cleanup(func() { clearPreferredOwnerTables(t) })
+			common.MemoryCacheEnabled = cached
+
+			// Three same-priority channels: #1 weight 10, #2 weight 0, #3 weight 20.
+			// 三个同优先级渠道：#1 权重 10，#2 权重 0，#3 权重 20。
+			for _, tc := range []struct {
+				id     int
+				weight uint
+			}{{1, 10}, {2, 0}, {3, 20}} {
+				insertPreferredOwnerCandidate(t, tc.id, "zw-model", "default", 1, 10, tc.weight, common.ChannelStatusEnabled, true)
+				// Keep Channel.weight in sync (cached path reads channel weight).
+				// 同步 Channel.weight（缓存路径读取渠道权重）。
+				require.NoError(t, DB.Model(&Channel{}).Where("id = ?", tc.id).Updates(map[string]interface{}{
+					"group": "default", "models": "zw-model", "priority": 10, "weight": tc.weight,
+				}).Error)
+			}
+			InitChannelCache()
+
+			// With #1 and #3 positive-weight present, #2 (weight 0) must never be
+			// chosen across many selections.
+			// 当 #1、#3 为正权重时，#2（权重 0）在多次选择中绝不应被选中。
+			for i := 0; i < 50; i++ {
+				ch, err := GetModelFailoverChannel("default", "zw-model", nil)
+				require.NoError(t, err)
+				require.NotEqual(t, 2, ch.Id, "zero-weight channel must not be selected")
+			}
+
+			// Exclude #1 and #3; only the weight-0 channel #2 remains, so it must be
+			// selected (sole candidate fallback).
+			// 排除 #1 和 #3；只剩权重 0 的 #2，此时它应被选中（唯一候选兜底）。
+			ch, err := GetModelFailoverChannel("default", "zw-model", []int{1, 3})
+			require.NoError(t, err)
+			require.Equal(t, 2, ch.Id)
+		})
+	}
+}

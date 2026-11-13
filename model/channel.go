@@ -602,6 +602,122 @@ func (channel *Channel) Delete() error {
 	return err
 }
 
+// channelModelFilterCondition returns a cross-DB LIKE condition that matches
+// channels whose comma-separated models column contains an exact model name
+// (wrapped in commas to avoid substring matches like "gpt-4" matching "gpt-4o").
+// channelModelFilterCondition 返回跨数据库的 LIKE 条件，用于匹配 models 列（逗号
+// 分隔）中精确包含某模型名的渠道（用逗号包裹以避免 "gpt-4" 误匹配 "gpt-4o" 这类子串）。
+func channelModelFilterCondition() string {
+	if common.UsingMySQL {
+		return "CONCAT(',', `models`, ',') LIKE ? ESCAPE '!'"
+	}
+	return "(',' || \"models\" || ',') LIKE ? ESCAPE '!'"
+}
+
+func channelModelFilterPattern(modelName string) string {
+	modelName = strings.NewReplacer(
+		"!", "!!",
+		"%", "!%",
+		"_", "!_",
+	).Replace(modelName)
+	return "%," + modelName + ",%"
+}
+
+// removeModelFromCSV removes an exact modelName from a comma-separated list,
+// preserving the order and spacing of the remaining entries. It reports whether
+// anything was removed.
+// removeModelFromCSV 从逗号分隔的列表中移除精确的 modelName，保留其余条目的顺序，
+// 并返回是否发生了移除。
+func removeModelFromCSV(models string, modelName string) (string, bool) {
+	parts := strings.Split(models, ",")
+	kept := make([]string, 0, len(parts))
+	removed := false
+	for _, p := range parts {
+		if strings.TrimSpace(p) == modelName {
+			removed = true
+			continue
+		}
+		kept = append(kept, p)
+	}
+	return strings.Join(kept, ","), removed
+}
+
+// RemoveModelFromAllChannels removes an exact model name from the models list of
+// every channel that references it, and synchronizes the abilities table in the
+// same transaction. It is used to keep channel model configuration in sync when
+// a model is deleted from the model list.
+//
+// Only exact model names are handled; rule-based model metadata (prefix/suffix/
+// contains) does not correspond to a concrete entry in a channel's models list
+// and is intentionally ignored to avoid accidental removals. Channels whose
+// models list becomes empty are allowed (the channel stays, just with no usable
+// model). The caller is responsible for refreshing the in-memory channel cache
+// (e.g. InitChannelCache) afterwards.
+//
+// RemoveModelFromAllChannels 从所有引用某精确模型名的渠道的 models 列表中移除该模型，
+// 并在同一事务内同步 abilities 表。用于在模型列表删除某模型时保持渠道模型配置同步。
+//
+// 仅处理精确模型名；规则模型（前缀/后缀/包含）不对应渠道 models 列表中的具体条目，
+// 为避免误删而刻意忽略。允许渠道 models 变空（渠道仍保留，只是暂无可用模型）。调用方
+// 负责随后刷新内存渠道缓存（如 InitChannelCache）。
+func RemoveModelFromAllChannels(modelName string) error {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return nil
+	}
+
+	var channels []*Channel
+	if err := DB.Where(channelModelFilterCondition(), channelModelFilterPattern(modelName)).Find(&channels).Error; err != nil {
+		return err
+	}
+	if len(channels) == 0 {
+		return nil
+	}
+
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	for _, channel := range channels {
+		newModels, removed := removeModelFromCSV(channel.Models, modelName)
+		if !removed {
+			continue
+		}
+		channel.Models = newModels
+		// Use an explicit column update so an empty string is persisted (GORM's
+		// struct Updates skips zero-value fields).
+		// 使用显式列更新，以便空字符串也能被写入（GORM 的结构体 Updates 会跳过零值字段）。
+		if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Update("models", newModels).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		if strings.TrimSpace(newModels) == "" {
+			// No models left: just drop all abilities of this channel. Rebuilding via
+			// UpdateAbilities on an empty models string would otherwise insert a stray
+			// empty-model ability.
+			// 已无任何模型：直接删除该渠道的全部 abilities。否则基于空 models 字符串调用
+			// UpdateAbilities 会插入一条模型名为空的无效 ability。
+			if err := tx.Where("channel_id = ?", channel.Id).Delete(&Ability{}).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+			continue
+		}
+		if err := channel.UpdateAbilities(tx); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
+}
+
 var channelStatusLock sync.Mutex
 
 // channelPollingLocks stores locks for each channel.id to ensure thread-safe polling

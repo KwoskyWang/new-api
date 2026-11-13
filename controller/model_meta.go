@@ -179,10 +179,30 @@ func DeleteModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 读取待删除模型，用于后续同步清理渠道中的模型配置
+	var existing model.Model
+	if err := model.DB.First(&existing, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
 	if err := model.DB.Delete(&model.Model{}, id).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 仅对精确名模型同步清理：从所有引用该模型的渠道 models 配置中移除，并同步 abilities。
+	// 规则模型（前缀/后缀/包含）不对应渠道里的具体模型名，跳过以避免误删。
+	if existing.NameRule == model.NameRuleExact && existing.ModelName != "" {
+		if err := model.RemoveModelFromAllChannels(existing.ModelName); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		// 刷新内存渠道缓存，使渠道模型配置实时生效
+		model.InitChannelCache()
+	}
+
 	model.RefreshPricing()
 	common.ApiSuccess(c, nil)
 }

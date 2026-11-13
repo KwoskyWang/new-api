@@ -1,9 +1,7 @@
 package model
 
 import (
-	"errors"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -83,6 +81,9 @@ func InitChannelCache() {
 	}
 	channelsIDM = newChannelId2channel
 	channelSyncLock.Unlock()
+	// Channel pool changed; drop SWRR counters so they don't reference stale ids.
+	// 渠道池已变化；清空 SWRR 计数器，避免引用陈旧的渠道 id。
+	resetSWRRSelectors()
 	common.SysLog("channels synced from database")
 }
 
@@ -142,13 +143,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	targetPriority := int64(sortedUniquePriorities[retry])
 
-	// get the priority for the given retry number
-	var sumWeight = 0
+	// Collect candidate channels at the target priority.
+	// 收集目标优先级层的候选渠道。
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
@@ -156,39 +156,13 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		}
 	}
 
-	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
-	}
-
-	// smoothing factor and adjustment
-	smoothingFactor := 1
-	smoothingAdjustment := 0
-
-	if sumWeight == 0 {
-		// when all channels have weight 0, set sumWeight to the number of channels and set smoothing adjustment to 100
-		// each channel's effective weight = 100
-		sumWeight = len(targetChannels) * 100
-		smoothingAdjustment = 100
-	} else if sumWeight/len(targetChannels) < 10 {
-		// when the average weight is less than 10, set smoothing factor to 100
-		smoothingFactor = 100
-	}
-
-	// Calculate the total weight of all channels up to endIdx
-	totalWeight := sumWeight * smoothingFactor
-
-	// Generate a random value in the range [0, totalWeight)
-	randomWeight := rand.Intn(totalWeight)
-
-	// Find a channel based on its weight
-	for _, channel := range targetChannels {
-		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
-		if randomWeight < 0 {
-			return channel, nil
-		}
-	}
-	// return null if no channel is not found
-	return nil, errors.New("channel not found")
+	// Select within this priority layer using smooth weighted round-robin so that
+	// over N requests each channel is hit in exact proportion to its weight, and
+	// disabling a channel automatically redistributes traffic to the survivors by
+	// their remaining weights.
+	// 在该优先级层内使用平滑加权轮询选择，使 N 次请求内各渠道命中次数严格符合权重比例，
+	// 且关闭某渠道时流量会按存活渠道的剩余权重自动重新分配。
+	return selectChannelBySWRR(group, model, targetPriority, targetChannels)
 }
 
 func CacheGetChannel(id int) (*Channel, error) {

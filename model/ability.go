@@ -121,21 +121,46 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	}
 	channel := Channel{}
 	if len(abilities) > 0 {
-		// Randomly choose one
-		weightSum := uint(0)
+		// Select one ability within this (single) priority layer using smooth
+		// weighted round-robin, so that over N requests each channel is hit in
+		// exact proportion to its weight and disabling a channel redistributes
+		// traffic to the survivors by their remaining weights. All abilities here
+		// share the same priority (enforced by getChannelQuery).
+		// 使用平滑加权轮询在该（单一）优先级层内选择一个 ability，使 N 次请求内各渠道
+		// 命中次数严格符合权重比例，且关闭某渠道时流量按存活渠道剩余权重重新分配。
+		// 此处所有 ability 同优先级（由 getChannelQuery 保证）。
+		// Semantics match the cached path: weight 0 means "do not participate"; such
+		// channels are excluded as long as at least one channel in this layer has a
+		// positive weight. If every channel is weight 0, fall back to equal shares.
+		// 语义与缓存路径一致：权重 0 表示"不参与分流"；只要该层至少有一个渠道权重 > 0，
+		// 这些 0 权重渠道会被排除。若该层全部为 0 权重，则兜底为均等分配。
+		hasPositiveWeight := false
 		for _, ability_ := range abilities {
-			weightSum += ability_.Weight + 10
-		}
-		// Randomly choose one
-		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
-			weight -= int(ability_.Weight) + 10
-			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
-			if weight <= 0 {
-				channel.Id = ability_.ChannelId
+			if ability_.Weight > 0 {
+				hasPositiveWeight = true
 				break
 			}
 		}
+		weights := make(map[int]int, len(abilities))
+		var priority int64
+		for _, ability_ := range abilities {
+			if ability_.Priority != nil {
+				priority = *ability_.Priority
+			}
+			if hasPositiveWeight {
+				if ability_.Weight == 0 {
+					continue // excluded
+				}
+				weights[ability_.ChannelId] = int(ability_.Weight)
+			} else {
+				weights[ability_.ChannelId] = 1 // all zero: distribute evenly
+			}
+		}
+		id, ok := globalSWRR.pick(swrrSelectorKey{group: group, model: model, priority: priority}, weights)
+		if !ok {
+			return nil, nil
+		}
+		channel.Id = id
 	} else {
 		return nil, nil
 	}

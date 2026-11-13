@@ -24,6 +24,17 @@ func GetSetting() PerfMetricsSetting {
 	return perfMetricsSetting
 }
 
+// SetEnabled toggles performance-metrics sampling at runtime. It is primarily
+// used to disable asynchronous sampling in tests so that fire-and-forget sample
+// goroutines do not outlive a test and race with global configuration, but it is
+// also a valid runtime switch for operators.
+// SetEnabled 在运行时开关性能指标采样。主要用于在测试中禁用异步采样，避免
+// fire-and-forget 的采样 goroutine 超出测试生命周期、与全局配置产生竞争；对运维
+// 而言它也是一个有效的运行时开关。
+func SetEnabled(enabled bool) {
+	perfMetricsSetting.Enabled = enabled
+}
+
 func GetBucketSeconds() int64 {
 	switch perfMetricsSetting.BucketTime {
 	case "minute":
