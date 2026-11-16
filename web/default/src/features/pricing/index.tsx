@@ -20,6 +20,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import {
   LoadingSkeleton,
   EmptyState,
@@ -30,9 +32,14 @@ import {
   ModelCardGrid,
   ModelDetailsDrawer,
 } from './components'
-import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
+import {
+  DEFAULT_NORMAL_USER_GROUP,
+  EXCLUDED_GROUPS,
+  VIEW_MODES,
+} from './constants'
 import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
+import { filterByGroup } from './lib/filters'
 
 export function Pricing() {
   const { t } = useTranslation()
@@ -81,6 +88,25 @@ export function Pricing() {
     clearSearch,
   } = useFilters(models || [])
 
+  // 普通用户（已登录且非管理员）只展示其所属分组下的模型，
+  // 并隐藏左侧筛选栏与工具栏筛选入口。
+  const user = useAuthStore((state) => state.auth.user)
+  const isNormalUser = user != null && (user.role ?? 0) < ROLE.ADMIN
+  // 普通用户所属分组：若未设置分组，则回退到默认的「测试分组」(test)。
+  const normalUserGroup = user?.group?.trim() || DEFAULT_NORMAL_USER_GROUP
+
+  // 普通用户在当前筛选结果上，再按自身分组进行限制。
+  const displayModels = useMemo(() => {
+    if (!isNormalUser) return filteredModels
+    return filterByGroup(filteredModels, normalUserGroup)
+  }, [isNormalUser, normalUserGroup, filteredModels])
+
+  // 普通用户所属分组下的模型总数（不受搜索/筛选影响），用于头部展示。
+  const normalUserTotalCount = useMemo(() => {
+    if (!isNormalUser) return models?.length || 0
+    return filterByGroup(models || [], normalUserGroup).length
+  }, [isNormalUser, normalUserGroup, models])
+
   const handleModelClick = useCallback((modelName: string) => {
     setSelectedModelName(modelName)
   }, [])
@@ -109,7 +135,7 @@ export function Pricing() {
   }, [clearFilters, clearSearch])
 
   const renderPricingContent = () => {
-    if (filteredModels.length === 0) {
+    if (displayModels.length === 0) {
       return (
         <EmptyState
           searchQuery={searchInput}
@@ -122,7 +148,7 @@ export function Pricing() {
     if (viewMode === VIEW_MODES.CARD) {
       return (
         <ModelCardGrid
-          models={filteredModels}
+          models={displayModels}
           onModelClick={handleModelClick}
           priceRate={priceRate}
           usdExchangeRate={usdExchangeRate}
@@ -134,7 +160,7 @@ export function Pricing() {
 
     return (
       <PricingTable
-        models={filteredModels}
+        models={displayModels}
         priceRate={priceRate}
         usdExchangeRate={usdExchangeRate}
         tokenUnit={tokenUnit}
@@ -182,7 +208,7 @@ export function Pricing() {
             </h1>
             <p className='text-muted-foreground/80 mt-3 text-sm sm:mt-4 sm:text-base'>
               {t('This site currently has {{count}} models enabled', {
-                count: models?.length || 0,
+                count: normalUserTotalCount,
               })}
             </p>
             <p className='text-muted-foreground/60 mx-auto mt-2 max-w-2xl text-xs leading-relaxed sm:text-sm'>
@@ -201,32 +227,40 @@ export function Pricing() {
             />
           </header>
 
-          <div className='grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'>
-            <PricingSidebar
-              quotaTypeFilter={quotaTypeFilter}
-              endpointTypeFilter={endpointTypeFilter}
-              vendorFilter={vendorFilter}
-              groupFilter={groupFilter}
-              tagFilter={tagFilter}
-              onQuotaTypeChange={setQuotaTypeFilter}
-              onEndpointTypeChange={setEndpointTypeFilter}
-              onVendorChange={setVendorFilter}
-              onGroupChange={setGroupFilter}
-              onTagChange={setTagFilter}
-              vendors={vendors || []}
-              groups={availableGroups}
-              groupRatios={groupRatio}
-              tags={availableTags}
-              models={models || []}
-              hasActiveFilters={hasActiveFilters}
-              onClearFilters={clearFilters}
-              className='hover-scrollbar sticky top-4 hidden max-h-[calc(100dvh-2rem)] self-start overflow-y-auto xl:block'
-            />
+          <div
+            className={
+              isNormalUser
+                ? 'grid gap-4'
+                : 'grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'
+            }
+          >
+            {!isNormalUser && (
+              <PricingSidebar
+                quotaTypeFilter={quotaTypeFilter}
+                endpointTypeFilter={endpointTypeFilter}
+                vendorFilter={vendorFilter}
+                groupFilter={groupFilter}
+                tagFilter={tagFilter}
+                onQuotaTypeChange={setQuotaTypeFilter}
+                onEndpointTypeChange={setEndpointTypeFilter}
+                onVendorChange={setVendorFilter}
+                onGroupChange={setGroupFilter}
+                onTagChange={setTagFilter}
+                vendors={vendors || []}
+                groups={availableGroups}
+                groupRatios={groupRatio}
+                tags={availableTags}
+                models={models || []}
+                hasActiveFilters={hasActiveFilters}
+                onClearFilters={clearFilters}
+                className='hover-scrollbar sticky top-4 hidden max-h-[calc(100dvh-2rem)] self-start overflow-y-auto xl:block'
+              />
+            )}
 
             <main className='min-w-0 space-y-4'>
               <PricingToolbar
-                filteredCount={filteredModels.length}
-                totalCount={models?.length}
+                filteredCount={displayModels.length}
+                totalCount={isNormalUser ? normalUserTotalCount : models?.length}
                 sortBy={sortBy}
                 onSortChange={setSortBy}
                 tokenUnit={tokenUnit}
@@ -253,6 +287,7 @@ export function Pricing() {
                 hasActiveFilters={hasActiveFilters}
                 activeFilterCount={activeFilterCount}
                 onClearFilters={clearFilters}
+                hideFilters={isNormalUser}
               />
 
               {renderPricingContent()}

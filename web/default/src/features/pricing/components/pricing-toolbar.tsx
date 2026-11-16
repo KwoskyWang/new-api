@@ -85,6 +85,8 @@ export interface PricingToolbarProps {
   hasActiveFilters: boolean
   activeFilterCount: number
   onClearFilters: () => void
+  /** 隐藏筛选入口（普通用户场景） */
+  hideFilters?: boolean
 }
 
 function SegmentedControl(props: {
@@ -162,21 +164,23 @@ export function PricingToolbar(props: PricingToolbarProps) {
     <div className='rounded-xl border p-3'>
       <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            onClick={() => setMobileFiltersOpen(true)}
-            className='gap-1.5 xl:hidden'
-          >
-            <Filter className='size-4' />
-            {t('Filter')}
-            {props.activeFilterCount > 0 && (
-              <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
-                {props.activeFilterCount}
-              </Badge>
-            )}
-          </Button>
+          {!props.hideFilters && (
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={() => setMobileFiltersOpen(true)}
+              className='gap-1.5 xl:hidden'
+            >
+              <Filter className='size-4' />
+              {t('Filter')}
+              {props.activeFilterCount > 0 && (
+                <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+                  {props.activeFilterCount}
+                </Badge>
+              )}
+            </Button>
+          )}
 
           <div className='text-muted-foreground flex items-baseline gap-1 text-sm'>
             <span className='text-foreground font-semibold tabular-nums'>
@@ -266,7 +270,10 @@ export function PricingToolbar(props: PricingToolbarProps) {
         </div>
       </div>
 
-      <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+      <Sheet
+        open={!props.hideFilters && mobileFiltersOpen}
+        onOpenChange={setMobileFiltersOpen}
+      >
         <SheetContent
           side='right'
           className='flex h-dvh w-full flex-col overflow-hidden p-0 sm:max-w-md'

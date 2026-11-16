@@ -43,6 +43,9 @@ export function getSortLabels(t: TFunction): Record<SortOption, string> {
 /** Filter values */
 export const FILTER_ALL = 'all'
 
+/** 普通用户未设置分组时，默认展示的分组（测试分组） */
+export const DEFAULT_NORMAL_USER_GROUP = 'test'
+
 /** Quota type options */
 export const QUOTA_TYPES = {
   ALL: 'all',
