@@ -92,6 +92,7 @@ export function Pricing() {
   // 并隐藏左侧筛选栏与工具栏筛选入口。
   const user = useAuthStore((state) => state.auth.user)
   const isNormalUser = user != null && (user.role ?? 0) < ROLE.ADMIN
+  const showModelDetails = !isNormalUser
   // 普通用户所属分组：若未设置分组，则回退到默认的「测试分组」(test)。
   const normalUserGroup = user?.group?.trim() || DEFAULT_NORMAL_USER_GROUP
 
@@ -149,7 +150,8 @@ export function Pricing() {
       return (
         <ModelCardGrid
           models={displayModels}
-          onModelClick={handleModelClick}
+          onModelClick={showModelDetails ? handleModelClick : undefined}
+          showDetailsButton={showModelDetails}
           priceRate={priceRate}
           usdExchangeRate={usdExchangeRate}
           tokenUnit={tokenUnit}
@@ -165,7 +167,8 @@ export function Pricing() {
         usdExchangeRate={usdExchangeRate}
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
-        onModelClick={handleModelClick}
+        onModelClick={showModelDetails ? handleModelClick : undefined}
+        showModelDetails={showModelDetails}
       />
     )
   }
@@ -294,7 +297,7 @@ export function Pricing() {
             </main>
           </div>
 
-          {selectedModel && (
+          {showModelDetails && selectedModel && (
             <ModelDetailsDrawer
               open={Boolean(selectedModel)}
               onOpenChange={(open) => {

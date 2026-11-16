@@ -20,6 +20,7 @@ import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { ROLE } from '@/lib/roles'
 import { ModelDetails } from '@/features/pricing/components/model-details'
 
 const modelDetailsSearchSchema = z.object({
@@ -50,6 +51,11 @@ export const Route = createFileRoute('/pricing/$modelId/')({
           search: { redirect: location.href },
         })
       }
+    }
+    const user = useAuthStore.getState().auth.user
+    const isNormalUser = user != null && (user.role ?? 0) < ROLE.ADMIN
+    if (isNormalUser) {
+      throw redirect({ to: '/pricing' })
     }
   },
   component: ModelDetails,

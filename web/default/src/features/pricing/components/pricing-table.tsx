@@ -47,6 +47,8 @@ export interface PricingTableProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   onModelClick?: (modelName: string) => void
+  /** When false, rows are not clickable and do not open model details. */
+  showModelDetails?: boolean
 }
 
 export function PricingTable(props: PricingTableProps) {
@@ -59,6 +61,7 @@ export function PricingTable(props: PricingTableProps) {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
     onModelClick,
+    showModelDetails = true,
   } = props
 
   const [pagination, setPagination] = useState<PaginationState>({
@@ -128,8 +131,16 @@ export function PricingTable(props: PricingTableProps) {
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  onClick={() => handleRowClick(row.original)}
-                  className='hover:bg-muted/30 cursor-pointer transition-colors'
+                  onClick={
+                    showModelDetails
+                      ? () => handleRowClick(row.original)
+                      : undefined
+                  }
+                  className={
+                    showModelDetails
+                      ? 'hover:bg-muted/30 cursor-pointer transition-colors'
+                      : 'hover:bg-muted/30 transition-colors'
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
