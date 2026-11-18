@@ -88,6 +88,7 @@ const schema = z.object({
   general_setting: z.object({
     ping_interval_enabled: z.boolean(),
     ping_interval_seconds: z.coerce.number().min(1),
+    relay_timing_diagnostics_enabled: z.boolean(),
   }),
 })
 
@@ -100,6 +101,7 @@ type FlatGlobalModelSettings = {
   'global.chat_completions_to_responses_policy': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
+  'general_setting.relay_timing_diagnostics_enabled': boolean
 }
 
 const flattenGlobalValues = (
@@ -119,6 +121,8 @@ const flattenGlobalValues = (
     values.general_setting.ping_interval_enabled,
   'general_setting.ping_interval_seconds':
     values.general_setting.ping_interval_seconds,
+  'general_setting.relay_timing_diagnostics_enabled':
+    values.general_setting.relay_timing_diagnostics_enabled,
 })
 
 function normalizeJsonText(value: string, fallback: string) {
@@ -399,6 +403,33 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                   )}
                 </FormDescription>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Separator />
+
+          <FormField
+            control={form.control}
+            name='general_setting.relay_timing_diagnostics_enabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('Relay Timing Diagnostics')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Global master switch for admin-only relay timing diagnostics. Each channel must also enable it individually. Keep off unless investigating latency.'
+                    )}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
               </FormItem>
             )}
           />

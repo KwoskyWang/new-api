@@ -72,6 +72,11 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
 
+	// 管理员专属：注入转发链路分段耗时诊断（relay_timing）。
+	// 该字段位于 other.admin_info 下，会被 model.formatUserLogs 对普通用户统一剥离，
+	// 仅管理员的日志接口（GetAllLogs）保留。每次渠道尝试在 attempts 中独立记录。
+	AppendRelayTimingAdminInfo(relayInfo, adminInfo)
+
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
 	appendRequestConversionChain(relayInfo, other)
@@ -80,6 +85,23 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+// AppendRelayTimingAdminInfo 将转发链路分段耗时诊断写入 adminInfo["relay_timing"]。
+// 仅在确有诊断数据时写入；无数据时不写入，前端会显示"无记录"。
+func AppendRelayTimingAdminInfo(relayInfo *relaycommon.RelayInfo, adminInfo map[string]interface{}) {
+	if relayInfo == nil || adminInfo == nil {
+		return
+	}
+	// 仅在全局 + 渠道级诊断开关同时开启时才写入诊断日志；关闭时不写。
+	if !relayInfo.ShouldDiagnoseRelayTiming() {
+		return
+	}
+	timingValue := relayInfo.RelayTiming.ToAdminInfoValue()
+	if timingValue == nil {
+		return
+	}
+	adminInfo["relay_timing"] = timingValue
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

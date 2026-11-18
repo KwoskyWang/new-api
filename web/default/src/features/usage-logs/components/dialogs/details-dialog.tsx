@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   UserCog,
   Info,
+  Timer,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -65,6 +66,7 @@ import {
   isTimingLogType,
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
+import type { RelayTimingData } from '../../types'
 
 function timingTextColorClass(
   variant: 'success' | 'warning' | 'danger'
@@ -387,6 +389,201 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
       {rows.map((row, idx) => (
         <DetailRow key={idx} label={row.label} value={row.value} mono />
       ))}
+    </DetailSection>
+  )
+}
+
+const NO_RECORD = '__no_record__'
+
+function formatMs(ms: number | null | undefined): string {
+  // Distinguish "no record" (null/undefined) from a real 0 ms.
+  if (ms == null) return NO_RECORD
+  if (ms < 0) return NO_RECORD
+  if (ms < 1000) return `${ms} ms`
+  return `${(ms / 1000).toFixed(2)} s`
+}
+
+function formatBodySize(bytes: number | null | undefined): string {
+  if (bytes == null || bytes < 0) return NO_RECORD
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+function RelayTimingSection(props: { timing: RelayTimingData }) {
+  const { t } = useTranslation()
+  const timing = props.timing
+
+  const noRecordNode = (
+    <span className='text-muted-foreground italic'>{t('No record')}</span>
+  )
+  const renderValue = (text: string): React.ReactNode =>
+    text === NO_RECORD ? noRecordNode : text
+
+  const localPhaseLabel = (name: string): string => {
+    switch (name) {
+      case 'auth_parse':
+        return t('Auth & parse')
+      case 'sensitive_check':
+        return t('Sensitive check')
+      case 'token_estimate':
+        return t('Token estimate')
+      case 'pricing_preconsume':
+        return t('Pricing & pre-consume')
+      default:
+        return name
+    }
+  }
+
+  const errorStageLabel = (stage: string): string => {
+    switch (stage) {
+      case 'get_conn':
+        return t('Acquiring connection')
+      case 'write_request':
+        return t('Writing request')
+      case 'wait_response':
+        return t('Waiting for response')
+      case 'read_stream':
+        return t('Reading stream')
+      case 'do_request':
+        return t('Request failed')
+      default:
+        return stage
+    }
+  }
+
+  const firstDataKindLabel = (kind: string | undefined): string => {
+    if (kind === 'first_data') return t('First valid data')
+    return t('First valid data')
+  }
+
+  const attempts = Array.isArray(timing.attempts) ? timing.attempts : []
+
+  return (
+    <DetailSection
+      icon={<Timer className='size-3.5' aria-hidden='true' />}
+      label={t('Timing Analysis')}
+    >
+      {/* Local processing */}
+      <DetailRow
+        label={t('Local Processing')}
+        value={renderValue(formatMs(timing.local_to_upstream_ms))}
+        mono
+      />
+      {Array.isArray(timing.local_phases) &&
+        timing.local_phases.map((phase, idx) => (
+          <DetailRow
+            key={`lp-${idx}`}
+            label={<span className='pl-3'>{localPhaseLabel(phase.name)}</span>}
+            value={renderValue(formatMs(phase.ms))}
+            mono
+            muted
+          />
+        ))}
+
+      {/* Per-attempt sections */}
+      {attempts.length === 0 && (
+        <DetailRow
+          label={t('Upstream Attempts')}
+          value={noRecordNode}
+        />
+      )}
+      {attempts.map((at, idx) => {
+        const connReusedText =
+          at.conn_reused == null
+            ? NO_RECORD
+            : at.conn_reused
+              ? t('Reused')
+              : t('New connection')
+        return (
+          <div
+            key={`at-${idx}`}
+            className='bg-background/60 mt-1.5 min-w-0 space-y-1 rounded border p-2'
+          >
+            <div className='flex items-center gap-1.5 text-xs font-semibold'>
+              <span>
+                {t('Attempt')} #{at.index + 1}
+              </span>
+              {at.channel_id ? (
+                <span className='text-muted-foreground font-normal'>
+                  ({t('Channel')} {at.channel_id})
+                </span>
+              ) : null}
+            </div>
+            <DetailRow
+              label={t('Request Body Size')}
+              value={renderValue(formatBodySize(at.request_body_size))}
+              mono
+            />
+            <DetailRow
+              label={t('Acquire Connection')}
+              value={renderValue(formatMs(at.get_conn_ms))}
+              mono
+            />
+            <DetailRow
+              label={t('DNS')}
+              value={renderValue(formatMs(at.dns_ms))}
+              mono
+              muted
+            />
+            <DetailRow
+              label={t('TCP')}
+              value={renderValue(formatMs(at.tcp_ms))}
+              mono
+              muted
+            />
+            <DetailRow
+              label={t('TLS')}
+              value={renderValue(formatMs(at.tls_ms))}
+              mono
+              muted
+            />
+            <DetailRow
+              label={t('Write Request')}
+              value={renderValue(formatMs(at.write_ms))}
+              mono
+            />
+            <DetailRow
+              label={t('Wait Response (after write)')}
+              value={renderValue(formatMs(at.wait_resp_ms))}
+              mono
+            />
+            <DetailRow
+              label={t('Response Header Returned')}
+              value={renderValue(formatMs(at.resp_header_ms))}
+              mono
+              muted
+            />
+            <DetailRow
+              label={firstDataKindLabel(at.first_data_kind)}
+              value={renderValue(formatMs(at.first_data_ms))}
+              mono
+            />
+            <DetailRow
+              label={t('Connection Reuse')}
+              value={renderValue(connReusedText)}
+            />
+            <DetailRow
+              label={t('Protocol')}
+              value={renderValue(at.protocol || NO_RECORD)}
+              mono
+            />
+            {at.tls_version ? (
+              <DetailRow label={t('TLS Version')} value={at.tls_version} mono />
+            ) : null}
+            {at.error_stage ? (
+              <DetailRow
+                label={t('Error Stage')}
+                value={
+                  <span className='text-rose-600'>
+                    {errorStageLabel(at.error_stage)}
+                  </span>
+                }
+              />
+            ) : null}
+          </div>
+        )
+      })}
     </DetailSection>
   )
 }
@@ -936,6 +1133,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     )}
                 </DetailSection>
               )}
+
+            {/* Relay timing diagnostics (admin only). Compatible with legacy
+                logs: when admin_info.relay_timing is absent, nothing renders. */}
+            {props.isAdmin && adminInfo?.relay_timing && (
+              <RelayTimingSection timing={adminInfo.relay_timing} />
+            )}
 
             {/* Subscription billing details */}
             {isSubscription && other && (

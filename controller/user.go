@@ -534,7 +534,19 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+
+	// 非管理员用户的可用模型仅基于其所属分组聚合，与分组下拉保持一致，
+	// 不暴露系统级其它可选分组才有的模型。管理员维持基于全部可用分组的行为。
+	var groups map[string]string
+	if c.GetInt("role") < common.RoleAdminUser {
+		groups = make(map[string]string)
+		if user.Group != "" {
+			groups[user.Group] = ""
+		}
+	} else {
+		groups = service.GetUserUsableGroups(user.Group)
+	}
+
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {

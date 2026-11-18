@@ -12,8 +12,10 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/relaytiming"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -171,6 +173,13 @@ type RelayInfo struct {
 	FinalRequestRelayFormat types.RelayFormat
 
 	StreamStatus *StreamStatus
+
+	// RelayTiming 是"管理员专属的转发链路分段耗时诊断"的独立计时容器。
+	// 它不改变 StartTime / FirstResponseTime / frt / use_time 的含义与起点。
+	// 仅用于诊断，数据最终写入日志的 other.admin_info.relay_timing（仅管理员可见）。
+	RelayTiming *relaytiming.RequestTiming
+	// currentAttempt 指向本次渠道尝试的计时对象，供 httptrace 挂载与首响应打点使用。
+	currentAttempt *relaytiming.Attempt
 
 	ThinkingContentInfo
 	TokenCountMeta
@@ -503,6 +512,18 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		info.UserSetting = userSetting
 	}
 
+	// 初始化诊断计时：以"应用进入时间"为本地处理基准。
+	// 仅在全局总开关开启时创建诊断对象；全局关闭时保持 nil，避免任何额外分配
+	// （RelayTiming 的所有方法均做了 nil 保护，可安全跳过所有打点）。
+	// 渠道级开关在 ChannelMeta 初始化后，由 ShouldDiagnoseRelayTiming 二次把关。
+	if operation_setting.IsRelayTimingDiagnosticsEnabled() {
+		enterTime := common.GetContextKeyTime(c, constant.ContextKeyAppEnterTime)
+		if enterTime.IsZero() {
+			enterTime = startTime
+		}
+		info.RelayTiming = relaytiming.New(enterTime)
+	}
+
 	return info
 }
 
@@ -648,11 +669,58 @@ func (info *RelayInfo) GetEstimatePromptTokens() int {
 	return info.estimatePromptTokens
 }
 
+// ShouldDiagnoseRelayTiming 判定本次请求是否需要采集转发链路分段耗时诊断。
+// 需同时满足：全局总开关开启 且 当前渠道的诊断开关开启。
+// 任一关闭时返回 false，调用方据此跳过创建 attempt / 挂载 trace / 写日志，避免额外开销。
+func (info *RelayInfo) ShouldDiagnoseRelayTiming() bool {
+	if info == nil {
+		return false
+	}
+	if !operation_setting.IsRelayTimingDiagnosticsEnabled() {
+		return false
+	}
+	if info.ChannelMeta == nil {
+		// 渠道信息尚未初始化时，无法确认渠道级开关，保守返回 false。
+		return false
+	}
+	return info.ChannelSetting.RelayTimingDiagnosticsEnabled
+}
+
 func (info *RelayInfo) SetFirstResponseTime() {
 	if info.isFirstResponse {
 		info.FirstResponseTime = time.Now()
 		info.isFirstResponse = false
 	}
+	// 同步为当前 attempt 记录"第一条有效 data"的诊断打点。
+	// 复用现有打点语义：这是第一条有效上游 SSE data，而非首个可见文字 Token。
+	if info.currentAttempt != nil {
+		info.currentAttempt.MarkFirstData(relaytiming.FirstDataKindFirstData)
+	}
+}
+
+// BeginAttempt 为一次新的上游渠道尝试创建诊断计时对象，并设为当前 attempt。
+// index 对应 RetryIndex。返回的 *Attempt 永不为 nil（超过上限时返回游离对象）。
+func (info *RelayInfo) BeginAttempt() *relaytiming.Attempt {
+	if info == nil {
+		return nil
+	}
+	channelId := 0
+	channelType := 0
+	if info.ChannelMeta != nil {
+		channelId = info.ChannelId
+		channelType = info.ChannelType
+	}
+	at := info.RelayTiming.NewAttempt(info.RetryIndex, channelId, channelType)
+	info.currentAttempt = at
+	return at
+}
+
+// CurrentAttempt 返回当前 attempt 的诊断计时对象，可能为 nil。
+func (info *RelayInfo) CurrentAttempt() *relaytiming.Attempt {
+	if info == nil {
+		return nil
+	}
+	return info.currentAttempt
 }
 
 func (info *RelayInfo) HasSendResponse() bool {

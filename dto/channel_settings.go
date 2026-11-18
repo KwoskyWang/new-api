@@ -7,6 +7,9 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	// RelayTimingDiagnosticsEnabled 为该渠道的"转发链路分段耗时诊断"开关，默认关闭。
+	// 仅当全局开关 GeneralSetting.RelayTimingDiagnosticsEnabled 也开启时才生效。
+	RelayTimingDiagnosticsEnabled bool `json:"relay_timing_diagnostics_enabled,omitempty"`
 }
 
 type VertexKeyType string

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"regexp"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 
 	common2 "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/relaytiming"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -477,6 +479,26 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		client = service.GetHttpClient()
 	}
 
+	// ── 管理员专属诊断计时：为本次渠道尝试挂载 httptrace ──
+	// 仅在全局 + 渠道级诊断开关同时开启时才采集；关闭时完全不创建 attempt、
+	// 不挂载 trace，避免对请求路径产生任何额外开销。
+	// 每次调用 doRequest 对应一次上游尝试（每次重试会重新进入此函数）。
+	// 该计时完全独立，不改变请求内容、协议/渠道选择、重试、计费、超时与取消行为。
+	var attempt *relaytiming.Attempt
+	if info.ShouldDiagnoseRelayTiming() {
+		attempt = info.BeginAttempt()
+	}
+	if attempt != nil {
+		// 优先利用已知长度记录应用层请求体字节数（net/http 对 *bytes.Buffer 等会预设 ContentLength），
+		// 不重新读取或完整复制请求体。未知长度时保持 nil（前端显示"无记录"）。
+		if req.ContentLength > 0 {
+			attempt.SetRequestBodySize(req.ContentLength)
+		}
+		// 挂载 trace 时保留原请求上下文与其中可能已存在的 trace（WithClientTrace 会组合二者）。
+		traceCtx := httptrace.WithClientTrace(req.Context(), attempt.Trace())
+		req = req.WithContext(traceCtx)
+	}
+
 	var stopPinger context.CancelFunc
 	if info.IsStream {
 		helper.SetEventStreamHeaders(c)
@@ -495,13 +517,29 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	if attempt != nil {
+		attempt.MarkRequestStart()
+		// 记录"应用进入 -> 首次上游请求"的本地处理总耗时（仅首次生效）。
+		info.RelayTiming.MarkUpstreamStart()
+	}
 	resp, err := client.Do(req)
 	if err != nil {
+		if attempt != nil {
+			attempt.MarkError(classifyDoRequestErrorStage(attempt))
+		}
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
+		if attempt != nil {
+			attempt.MarkError(relaytiming.ErrorStageGeneric)
+		}
 		return nil, errors.New("resp is nil")
+	}
+
+	if attempt != nil {
+		attempt.MarkResponseReturned()
+		attempt.SetProtocol(resp.Proto)
 	}
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {
@@ -511,6 +549,27 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	_ = req.Body.Close()
 	_ = c.Request.Body.Close()
 	return resp, nil
+}
+
+// classifyDoRequestErrorStage 在 client.Do 返回错误时，依据 httptrace 已采集到的时间点
+// 推断错误发生在哪个阶段。若 trace 回调已直接设置过错误阶段（如 ConnectDone/TLSDone/
+// WroteRequest 回调中的 err），则 MarkError 会保留最早的那个，不会被此处覆盖。
+func classifyDoRequestErrorStage(attempt *relaytiming.Attempt) string {
+	switch {
+	case attempt == nil:
+		return relaytiming.ErrorStageGeneric
+	case !attempt.HasWroteRequest() && !attempt.HasGotConn():
+		// 连接都没拿到，归为获取连接阶段。
+		return relaytiming.ErrorStageGetConn
+	case !attempt.HasWroteRequest():
+		// 拿到连接但未写完请求。
+		return relaytiming.ErrorStageWriteReq
+	case !attempt.HasGotFirstByte():
+		// 请求已写出但未收到响应头首字节。
+		return relaytiming.ErrorStageWaitResp
+	default:
+		return relaytiming.ErrorStageGeneric
+	}
 }
 
 func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {

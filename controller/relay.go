@@ -123,6 +123,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	// 诊断计时：记录"请求解析与准备统计材料"阶段（从应用进入到此刻）。
+	// 该段大致覆盖鉴权/读体/首次选渠（中间件）+ 请求解析（本函数内到目前为止）。
+	if enter := relayInfo.RelayTiming.EnterTime(); !enter.IsZero() {
+		relayInfo.RelayTiming.AddLocalPhaseSince("auth_parse", enter)
+	}
+	phaseStart := time.Now()
+
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
@@ -141,6 +148,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			return
 		}
 	}
+	// 诊断计时：敏感词检查 + 统计材料准备阶段。
+	relayInfo.RelayTiming.AddLocalPhaseSince("sensitive_check", phaseStart)
+	phaseStart = time.Now()
 
 	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
 	if err != nil {
@@ -149,6 +159,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	relayInfo.SetEstimatePromptTokens(tokens)
+	// 诊断计时：Token 估算阶段。
+	relayInfo.RelayTiming.AddLocalPhaseSince("token_estimate", phaseStart)
+	phaseStart = time.Now()
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
 	if err != nil {
@@ -166,6 +179,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			return
 		}
 	}
+	// 诊断计时：价格计算 + 预扣费阶段。
+	relayInfo.RelayTiming.AddLocalPhaseSince("pricing_preconsume", phaseStart)
 
 	defer func() {
 		// Only return quota if downstream failed and quota was actually pre-consumed
@@ -227,7 +242,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)
 
 		if !shouldRetry(c, newAPIError, retryParam.GetRetryLimit()-retryParam.GetRetry()) {
 			break
@@ -360,7 +375,7 @@ func canRetryRelay(c *gin.Context, retryTimes int) bool {
 	return !specific
 }
 
-func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
+func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, relayInfo *relaycommon.RelayInfo) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
@@ -396,6 +411,11 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
 		}
 		service.AppendChannelAffinityAdminInfo(c, adminInfo)
+		// 管理员专属：错误日志同样记录转发链路分段耗时诊断，
+		// 以便请求写出/响应等待失败时保留已完成的计时与错误阶段。
+		if relayInfo != nil {
+			service.AppendRelayTimingAdminInfo(relayInfo, adminInfo)
+		}
 		other["admin_info"] = adminInfo
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 		if startTime.IsZero() {
@@ -563,7 +583,7 @@ func RelayTask(c *gin.Context) {
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
-				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
+				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode), relayInfo)
 		}
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, retryParam.GetRetryLimit()-retryParam.GetRetry()) {

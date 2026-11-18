@@ -60,6 +60,8 @@ const MODELS_SECTIONS = [
               settings['general_setting.ping_interval_enabled'],
             ping_interval_seconds:
               settings['general_setting.ping_interval_seconds'],
+            relay_timing_diagnostics_enabled:
+              settings['general_setting.relay_timing_diagnostics_enabled'],
           },
         }}
       />

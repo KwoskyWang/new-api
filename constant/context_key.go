@@ -10,6 +10,11 @@ const (
 	ContextKeyOriginalModel    ContextKey = "original_model"
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 
+	// ContextKeyAppEnterTime 记录请求进入应用（最早中间件）的时间点，
+	// 仅用于"管理员专属的转发链路分段耗时诊断"，是本地处理计时的独立基准。
+	// 它不改变 ContextKeyRequestStartTime / StartTime 的含义与起点。
+	ContextKeyAppEnterTime ContextKey = "app_enter_time"
+
 	/* token related keys */
 	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"
 	ContextKeyTokenKey               ContextKey = "token_key"

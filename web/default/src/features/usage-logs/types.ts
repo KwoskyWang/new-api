@@ -92,6 +92,56 @@ export interface ChannelAffinityInfo {
   using_group?: string
 }
 
+/**
+ * One local-processing phase (admin timing diagnostics).
+ */
+export interface RelayTimingLocalPhase {
+  name: string
+  ms: number
+}
+
+/**
+ * Per-attempt relay timing diagnostics (admin only).
+ *
+ * Optional duration fields use `number` when measured (including a real 0 ms)
+ * and are absent (undefined) when the phase did not happen or could not be
+ * captured (e.g. DNS/TLS on a reused connection). The UI must distinguish
+ * "absent" (show "No record") from a real 0 ms value.
+ */
+export interface RelayTimingAttempt {
+  index: number
+  channel_id?: number
+  channel_type?: number
+  request_body_size?: number
+  get_conn_ms?: number
+  dns_ms?: number
+  tcp_ms?: number
+  tls_ms?: number
+  write_ms?: number
+  wait_resp_ms?: number
+  resp_header_ms?: number
+  first_data_ms?: number
+  dns_count?: number
+  connect_count?: number
+  conn_reused?: boolean
+  tls_version?: string
+  protocol?: string
+  error_stage?: string
+  first_data_kind?: string
+}
+
+/**
+ * Relay timing diagnostics container (admin only).
+ *
+ * local_total_ms / local_to_upstream_ms use -1 to mean "no record".
+ */
+export interface RelayTimingData {
+  local_total_ms: number
+  local_to_upstream_ms: number
+  local_phases?: RelayTimingLocalPhase[]
+  attempts?: RelayTimingAttempt[]
+}
+
 export interface LogOtherData {
   admin_info?: {
     is_multi_key?: boolean
@@ -109,6 +159,9 @@ export interface LogOtherData {
     // Manage audit fields (type=3, admin only)
     admin_username?: string
     admin_id?: number | string
+    // Relay timing diagnostics (admin only). Present only on admin log endpoints;
+    // stripped for regular users by the backend together with the whole admin_info.
+    relay_timing?: RelayTimingData
   }
   request_path?: string
   request_conversion?: string[]
