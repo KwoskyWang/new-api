@@ -7,6 +7,11 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	// ForceHTTP1 为该渠道的"上游使用 HTTP/1.1"开关，默认关闭。
+	// 开启后，iSpace 到该渠道上游的出站连接仅协商 HTTP/1.1，
+	// 使用独立、可复用的 Transport 与连接池，不影响其他渠道与协议协商。
+	// 旧渠道缺失该字段时保持 false，继续沿用现有客户端与 HTTP/2 协商。
+	ForceHTTP1 bool `json:"force_http1,omitempty"`
 	// RelayTimingDiagnosticsEnabled 为该渠道的"转发链路分段耗时诊断"开关，默认关闭。
 	// 仅当全局开关 GeneralSetting.RelayTimingDiagnosticsEnabled 也开启时才生效。
 	RelayTimingDiagnosticsEnabled bool `json:"relay_timing_diagnostics_enabled,omitempty"`

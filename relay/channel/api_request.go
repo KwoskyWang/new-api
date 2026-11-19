@@ -470,13 +470,12 @@ func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error
-	if info.ChannelSetting.Proxy != "" {
-		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
-		if err != nil {
-			return nil, fmt.Errorf("new proxy http client failed: %w", err)
-		}
-	} else {
-		client = service.GetHttpClient()
+	// 统一出站客户端选择：复用现有默认/代理客户端选择逻辑，并在渠道开启
+	// "上游使用 HTTP/1.1"开关时切换到独立、可复用的仅 HTTP/1.1 客户端。
+	// 开关关闭时行为与此前完全一致（现有客户端 + HTTP/2 协商）。
+	client, err = service.GetRelayHttpClient(info.ChannelSetting.Proxy, info.ChannelSetting.ForceHTTP1)
+	if err != nil {
+		return nil, fmt.Errorf("get relay http client failed: %w", err)
 	}
 
 	// ── 管理员专属诊断计时：为本次渠道尝试挂载 httptrace ──

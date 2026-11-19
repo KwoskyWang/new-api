@@ -239,6 +239,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
+    values.force_http1 ||
     values.relay_timing_diagnostics_enabled ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
@@ -3187,6 +3188,31 @@ export function ChannelMutateDrawer({
                             )}
                           </FormDescription>
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='force_http1'
+                      render={({ field }) => (
+                        <FormItem className='flex items-center justify-between'>
+                          <div className='space-y-0.5'>
+                            <FormLabel>
+                              {t('Use HTTP/1.1 for Upstream')}
+                            </FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Only affects the connection from New API to this channel upstream.'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
                         </FormItem>
                       )}
                     />
