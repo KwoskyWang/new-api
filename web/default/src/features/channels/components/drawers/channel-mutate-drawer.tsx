@@ -240,6 +240,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.force_http1 ||
+    (values.type === 14 && values.gzip_large_claude_requests) ||
     values.relay_timing_diagnostics_enabled ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
@@ -3216,6 +3217,33 @@ export function ChannelMutateDrawer({
                         </FormItem>
                       )}
                     />
+
+                    {currentType === 14 && (
+                      <FormField
+                        control={form.control}
+                        name='gzip_large_claude_requests'
+                        render={({ field }) => (
+                          <FormItem className='flex items-center justify-between'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>
+                                {t('Compress Large Claude Requests')}
+                              </FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Sends JSON bodies of at least 1 MiB with gzip when compression saves enough space. Enable only if the upstream accepts gzip requests.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <FormField
                       control={form.control}

@@ -62,6 +62,7 @@ export const channelFormSchema = z.object({
   system_prompt: z.string().optional(),
   system_prompt_override: z.boolean().optional(),
   force_http1: z.boolean().optional(),
+  gzip_large_claude_requests: z.boolean().optional(),
   relay_timing_diagnostics_enabled: z.boolean().optional(),
   // Type-specific settings (stored in settings JSON)
   is_enterprise_account: z.boolean().optional(), // OpenRouter specific
@@ -122,6 +123,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   system_prompt: '',
   system_prompt_override: false,
   force_http1: false,
+  gzip_large_claude_requests: false,
   relay_timing_diagnostics_enabled: false,
   // Type-specific settings
   is_enterprise_account: false,
@@ -160,6 +162,7 @@ export function transformChannelToFormDefaults(
     system_prompt: '',
     system_prompt_override: false,
     force_http1: false,
+    gzip_large_claude_requests: false,
     relay_timing_diagnostics_enabled: false,
   }
 
@@ -174,6 +177,7 @@ export function transformChannelToFormDefaults(
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         force_http1: parsed.force_http1 || false,
+        gzip_large_claude_requests: parsed.gzip_large_claude_requests === true,
         relay_timing_diagnostics_enabled:
           parsed.relay_timing_diagnostics_enabled || false,
       }
@@ -286,6 +290,7 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     force_http1: formData.force_http1 || false,
+    gzip_large_claude_requests: formData.gzip_large_claude_requests === true,
     relay_timing_diagnostics_enabled:
       formData.relay_timing_diagnostics_enabled || false,
   }

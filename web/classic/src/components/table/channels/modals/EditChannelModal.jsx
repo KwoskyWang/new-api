@@ -196,6 +196,7 @@ const EditChannelModal = (props) => {
     system_prompt: '',
     system_prompt_override: false,
     force_http1: false,
+    gzip_large_claude_requests: false,
     settings: '',
     // 仅 Vertex: 密钥格式（存入 settings.vertex_key_type）
     vertex_key_type: 'json',
@@ -519,6 +520,7 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     system_prompt: '',
     force_http1: false,
+    gzip_large_claude_requests: false,
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
@@ -873,6 +875,8 @@ const EditChannelModal = (props) => {
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
           data.force_http1 = parsedSettings.force_http1 || false;
+          data.gzip_large_claude_requests =
+            parsedSettings.gzip_large_claude_requests === true;
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -882,6 +886,7 @@ const EditChannelModal = (props) => {
           data.system_prompt = '';
           data.system_prompt_override = false;
           data.force_http1 = false;
+          data.gzip_large_claude_requests = false;
         }
       } else {
         data.force_format = false;
@@ -891,6 +896,7 @@ const EditChannelModal = (props) => {
         data.system_prompt = '';
         data.system_prompt_override = false;
         data.force_http1 = false;
+        data.gzip_large_claude_requests = false;
       }
 
       if (data.settings) {
@@ -1001,6 +1007,7 @@ const EditChannelModal = (props) => {
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
         force_http1: data.force_http1 || false,
+        gzip_large_claude_requests: data.gzip_large_claude_requests,
       });
       initialModelsRef.current = (data.models || [])
         .map((model) => (model || '').trim())
@@ -1044,7 +1051,8 @@ const EditChannelModal = (props) => {
         data.force_format ||
         data.claude_beta_query ||
         data.system_prompt_override ||
-        data.force_http1;
+        data.force_http1 ||
+        (data.type === 14 && data.gzip_large_claude_requests);
       if (hasAdvancedValues) {
         setAdvancedSettingsOpen(true);
       }
@@ -1392,6 +1400,7 @@ const EditChannelModal = (props) => {
       system_prompt: '',
       system_prompt_override: false,
       force_http1: false,
+      gzip_large_claude_requests: false,
     });
     // 重置密钥模式状态
     setKeyMode('append');
@@ -1763,6 +1772,7 @@ const EditChannelModal = (props) => {
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
       force_http1: localInputs.force_http1 || false,
+      gzip_large_claude_requests: inputs.gzip_large_claude_requests === true,
     };
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
@@ -1845,6 +1855,7 @@ const EditChannelModal = (props) => {
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.force_http1;
+    delete localInputs.gzip_large_claude_requests;
     delete localInputs.is_enterprise_account;
     // 顶层的 vertex_key_type 不应发送给后端
     delete localInputs.vertex_key_type;
@@ -2539,6 +2550,25 @@ const EditChannelModal = (props) => {
                   <Form.Input field='proxy' label={t('代理地址')} placeholder={t('例如: socks5://user:pass@host:port')} onChange={(value) => handleChannelSettingsChange('proxy', value)} showClear extraText={t('用于配置网络代理，支持 socks5 协议')} />
 
                   <Form.Switch field='force_http1' label={t('上游使用 HTTP/1.1')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('force_http1', value)} extraText={t('仅影响 New API 到该渠道上游的连接。')} />
+
+                  {inputs.type === 14 && (
+                    <Form.Switch
+                      field='gzip_large_claude_requests'
+                      label={t('压缩大型 Claude 请求')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      keepState
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'gzip_large_claude_requests',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '对达到 1 MiB 且压缩后明显变小的 JSON 请求体使用 gzip。仅在上游接受 gzip 请求时启用。',
+                      )}
+                    />
+                  )}
 
                   <Form.TextArea field='system_prompt' label={t('系统提示词')} placeholder={t('输入系统提示词，用户的系统提示词将优先于此设置')} onChange={(value) => handleChannelSettingsChange('system_prompt', value)} autosize showClear extraText={t('用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置')} />
                   <Form.Switch field='system_prompt_override' label={t('系统提示词拼接')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('system_prompt_override', value)} extraText={t('如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面')} />

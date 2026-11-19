@@ -1,10 +1,13 @@
 package channel
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httptrace"
 	"regexp"
@@ -13,6 +16,7 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
+	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/pkg/relaytiming"
 	"github.com/QuantumNous/new-api/relay/common"
@@ -311,11 +315,66 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
+	if info.ChannelSetting.GzipLargeClaudeRequests &&
+		info.ChannelType == channelconstant.ChannelTypeAnthropic &&
+		info.RelayFormat == types.RelayFormatClaude {
+		if err := gzipLargeClaudeRequest(req); err != nil {
+			return nil, fmt.Errorf("compress upstream Claude request: %w", err)
+		}
+	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
 	return resp, nil
+}
+
+func gzipLargeClaudeRequest(req *http.Request) error {
+	const minSize = 1 << 20
+	if req.Method != http.MethodPost || req.ContentLength < minSize ||
+		req.GetBody == nil || req.Header.Get("Content-Encoding") != "" {
+		return nil
+	}
+	mediaType, _, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		return nil
+	}
+
+	original, err := req.GetBody()
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	var compressed bytes.Buffer
+	writer, err := gzip.NewWriterLevel(&compressed, gzip.BestSpeed)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(writer, original)
+	closeErr := writer.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	// Keep the existing body unless compression saves at least 20%.
+	size := int64(compressed.Len())
+	if size > req.ContentLength-req.ContentLength/5 {
+		return nil
+	}
+
+	encoded := compressed.Bytes()
+	_ = req.Body.Close()
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(encoded)), nil
+	}
+	req.Body = io.NopCloser(bytes.NewReader(encoded))
+	req.ContentLength = size
+	req.Header.Del("Content-Length")
+	req.Header.Set("Content-Encoding", "gzip")
+	return nil
 }
 
 func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
