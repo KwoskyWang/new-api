@@ -23,6 +23,8 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
+	channellatency "github.com/QuantumNous/new-api/service/channel_latency"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -127,6 +129,10 @@ func main() {
 		}
 		return a
 	}
+
+	// Channel latency scoring: Redis window + score-only SWRR; failed pairs enter probe pool
+	channellatency.Init()
+	channellatency.ProbeFunc = controller.ProbeChannelLatencyModel
 
 	// Channel upstream model update check task
 	controller.StartChannelUpstreamModelUpdateTask()
@@ -288,6 +294,15 @@ func InitResources() error {
 
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
+
+	// Local/dev: CHANNEL_LATENCY_* from .env (after godotenv); persist so SyncOptions keeps them.
+	operation_setting.ApplyChannelLatencyEnvBootstrap()
+	if operation_setting.IsChannelLatencyScoringEnabled() {
+		_ = model.UpdateOption("channel_latency_setting.enabled", "true")
+	}
+	if operation_setting.IsChannelLatencyDetailDBEnabled() {
+		_ = model.UpdateOption("channel_latency_setting.detail_db_enabled", "true")
+	}
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

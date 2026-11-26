@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	channellatency "github.com/QuantumNous/new-api/service/channel_latency"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -537,13 +538,13 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		return nil, fmt.Errorf("get relay http client failed: %w", err)
 	}
 
-	// ── 管理员专属诊断计时：为本次渠道尝试挂载 httptrace ──
-	// 仅在全局 + 渠道级诊断开关同时开启时才采集；关闭时完全不创建 attempt、
-	// 不挂载 trace，避免对请求路径产生任何额外开销。
-	// 每次调用 doRequest 对应一次上游尝试（每次重试会重新进入此函数）。
-	// 该计时完全独立，不改变请求内容、协议/渠道选择、重试、计费、超时与取消行为。
+	// ── 上游尝试计时：管理员诊断全量；延时打分按采样挂 httptrace ──
+	// 未采样时仍用轻量路径记录成败（探测池），不挂 trace、不写窗口。
 	var attempt *relaytiming.Attempt
-	if info.ShouldDiagnoseRelayTiming() {
+	collectTiming := info.ShouldCollectUpstreamTiming()
+	trackOutcome := !collectTiming && info.ShouldTrackLatencyOutcome()
+	if collectTiming {
+		info.EnsureRelayTiming()
 		attempt = info.BeginAttempt()
 	}
 	if attempt != nil {
@@ -584,6 +585,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if err != nil {
 		if attempt != nil {
 			attempt.MarkError(classifyDoRequestErrorStage(attempt))
+			attempt.MarkResponseComplete(0)
+			channellatency.RecordAttemptSample(info, attempt, false, 0)
+		} else if trackOutcome {
+			channellatency.RecordAttemptOutcome(info, false, 0)
 		}
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
@@ -591,6 +596,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if resp == nil {
 		if attempt != nil {
 			attempt.MarkError(relaytiming.ErrorStageGeneric)
+			attempt.MarkResponseComplete(0)
+			channellatency.RecordAttemptSample(info, attempt, false, 0)
+		} else if trackOutcome {
+			channellatency.RecordAttemptOutcome(info, false, 0)
 		}
 		return nil, errors.New("resp is nil")
 	}
@@ -598,6 +607,11 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if attempt != nil {
 		attempt.MarkResponseReturned()
 		attempt.SetProtocol(resp.Proto)
+		// Wrap body to accumulate recv bytes / recv duration; record sample on EOF/Close.
+		resp.Body = wrapTimingBody(resp.Body, info, attempt, resp.StatusCode)
+	} else if trackOutcome {
+		success := resp.StatusCode >= 200 && resp.StatusCode < 400
+		channellatency.RecordAttemptOutcome(info, success, resp.StatusCode)
 	}
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {
@@ -607,6 +621,50 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	_ = req.Body.Close()
 	_ = c.Request.Body.Close()
 	return resp, nil
+}
+
+// timingBody is a pass-through ReadCloser: one stream path upstream → adaptor → client.
+// It only increments a local byte counter (no second buffer / tee of body content).
+// Metrics finalize + Redis/DB write happen after EOF/Close, asynchronously.
+type timingBody struct {
+	rc      io.ReadCloser
+	info    *common.RelayInfo
+	attempt *relaytiming.Attempt
+	status  int
+	n       int64
+	once    sync.Once
+}
+
+func wrapTimingBody(rc io.ReadCloser, info *common.RelayInfo, attempt *relaytiming.Attempt, statusCode int) io.ReadCloser {
+	if rc == nil || attempt == nil {
+		return rc
+	}
+	return &timingBody{rc: rc, info: info, attempt: attempt, status: statusCode}
+}
+
+func (b *timingBody) Read(p []byte) (int, error) {
+	n, err := b.rc.Read(p)
+	if n > 0 {
+		b.n += int64(n)
+	}
+	if err == io.EOF {
+		b.finish()
+	}
+	return n, err
+}
+
+func (b *timingBody) Close() error {
+	b.finish()
+	return b.rc.Close()
+}
+
+func (b *timingBody) finish() {
+	b.once.Do(func() {
+		b.attempt.MarkResponseComplete(b.n)
+		success := b.status >= 200 && b.status < 400
+		// RecordAttemptSample itself pushes Redis/DB off the stream goroutine via gopool.
+		channellatency.RecordAttemptSample(b.info, b.attempt, success, b.status)
+	})
 }
 
 // classifyDoRequestErrorStage 在 client.Do 返回错误时，依据 httptrace 已采集到的时间点

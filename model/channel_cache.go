@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -122,6 +123,19 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 			return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
+	}
+
+	// Latency scoring on: ignore admin Priority; one pool, score-only SWRR.
+	if operation_setting.IsChannelLatencyScoringEnabled() {
+		targetChannels := make([]*Channel, 0, len(channels))
+		for _, channelId := range channels {
+			if channel, ok := channelsIDM[channelId]; ok {
+				targetChannels = append(targetChannels, channel)
+			} else {
+				return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			}
+		}
+		return selectChannelBySWRR(group, model, 0, targetChannels)
 	}
 
 	uniquePriorities := make(map[int]bool)

@@ -37,7 +37,8 @@ type AttemptSnapshot struct {
 	ChannelId   int `json:"channel_id,omitempty"`
 	ChannelType int `json:"channel_type,omitempty"`
 
-	RequestBodySize *int64 `json:"request_body_size,omitempty"`
+	RequestBodySize  *int64 `json:"request_body_size,omitempty"`
+	ResponseBodySize *int64 `json:"response_body_size,omitempty"`
 
 	GetConnMs    *int64 `json:"get_conn_ms,omitempty"`
 	DNSMs        *int64 `json:"dns_ms,omitempty"`
@@ -45,6 +46,8 @@ type AttemptSnapshot struct {
 	TLSMs        *int64 `json:"tls_ms,omitempty"`
 	WriteMs      *int64 `json:"write_ms,omitempty"`
 	WaitRespMs   *int64 `json:"wait_resp_ms,omitempty"`
+	RecvBodyMs   *int64 `json:"recv_body_ms,omitempty"`
+	TotalMs      *int64 `json:"total_ms,omitempty"`
 	RespHeaderMs *int64 `json:"resp_header_ms,omitempty"`
 	FirstDataMs  *int64 `json:"first_data_ms,omitempty"`
 
@@ -105,6 +108,10 @@ func (a *Attempt) snapshot() AttemptSnapshot {
 		size := a.requestBodySize
 		snap.RequestBodySize = &size
 	}
+	if a.responseBodySize >= 0 {
+		size := a.responseBodySize
+		snap.ResponseBodySize = &size
+	}
 	if a.connReusedSet {
 		snap.ConnReused = ptrBool(a.connReused)
 	}
@@ -135,6 +142,26 @@ func (a *Attempt) snapshot() AttemptSnapshot {
 	// 写出完成 -> 响应头首字节。
 	if !a.wroteRequestTime.IsZero() && !a.gotFirstByteTime.IsZero() {
 		snap.WaitRespMs = ptrMs(a.gotFirstByteTime.Sub(a.wroteRequestTime))
+	}
+
+	// 响应头/首字节 -> 响应体读完。
+	recvBase := a.gotFirstByteTime
+	if recvBase.IsZero() {
+		recvBase = a.responseReturnedTime
+	}
+	if !recvBase.IsZero() && !a.responseDoneTime.IsZero() {
+		snap.RecvBodyMs = ptrMs(a.responseDoneTime.Sub(recvBase))
+	}
+
+	// 请求开始 -> 响应体读完（或仅到响应头）。
+	if a.hasStart {
+		end := a.responseDoneTime
+		if end.IsZero() {
+			end = a.responseReturnedTime
+		}
+		if !end.IsZero() {
+			snap.TotalMs = ptrMs(end.Sub(a.requestStart))
+		}
 	}
 
 	// 请求开始 -> client.Do 返回响应头。

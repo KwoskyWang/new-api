@@ -5,6 +5,7 @@ import (
 	"math/rand"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -58,50 +59,94 @@ func GetModelFailoverChannel(group, modelName string, excludedIDs []int) (*Chann
 	if len(candidates) == 0 {
 		return nil, ErrNoAvailableFailoverChannel
 	}
-	priority := candidates[0].GetPriority()
-	for _, ch := range candidates {
-		if ch.GetPriority() > priority {
-			priority = ch.GetPriority()
+
+	layer := candidates
+	if !operation_setting.IsChannelLatencyScoringEnabled() {
+		priority := candidates[0].GetPriority()
+		for _, ch := range candidates {
+			if ch.GetPriority() > priority {
+				priority = ch.GetPriority()
+			}
+		}
+		// Collect candidates at the highest priority among the untried channels.
+		layer = make([]*Channel, 0, len(candidates))
+		for _, ch := range candidates {
+			if ch.GetPriority() == priority {
+				layer = append(layer, ch)
+			}
 		}
 	}
 
-	// Collect candidates at the highest priority among the untried channels.
-	// 在未尝试的渠道中收集最高优先级层的候选。
-	layer := make([]*Channel, 0, len(candidates))
-	for _, ch := range candidates {
-		if ch.GetPriority() == priority {
-			layer = append(layer, ch)
+	weightMap := make(map[int]int, len(layer))
+	byID := make(map[int]*Channel, len(layer))
+	if operation_setting.IsChannelLatencyScoringEnabled() {
+		for _, ch := range layer {
+			weightMap[ch.Id] = 1
+			byID[ch.Id] = ch
+		}
+	} else {
+		// Weight-0 semantics, consistent with the primary selection path.
+		hasPositive := false
+		for _, ch := range layer {
+			w := ch.GetWeight()
+			if w > 0 {
+				hasPositive = true
+			}
+			weightMap[ch.Id] = w
+			byID[ch.Id] = ch
+		}
+		if hasPositive {
+			for id, w := range weightMap {
+				if w <= 0 {
+					delete(weightMap, id)
+					delete(byID, id)
+				}
+			}
+		} else {
+			for id := range weightMap {
+				weightMap[id] = 1
+			}
 		}
 	}
-
-	// Weight-0 semantics, consistent with the primary selection path:
-	// a weight of 0 means "do not participate". Zero-weight channels are excluded
-	// as long as at least one channel in this layer has a positive weight. If every
-	// channel in the layer is weight 0, fall back to an even random choice so the
-	// failover does not stall. The random weighted algorithm itself is kept for
-	// failover (not switched to SWRR), per configuration.
-	// 权重 0 语义，与主选择路径保持一致：权重 0 表示"不参与"。只要该层至少有一个渠道
-	// 权重 > 0，权重 0 的渠道会被排除；若该层全部为 0 权重，则兜底为均匀随机选择，避免
-	// failover 卡住。failover 仍保留随机加权算法（未切换为 SWRR）。
-	targets := make([]*Channel, 0, len(layer))
-	totalWeight := 0
-	for _, ch := range layer {
-		if ch.GetWeight() > 0 {
-			targets = append(targets, ch)
-			totalWeight += ch.GetWeight()
+	inCount := len(weightMap)
+	if EffectiveWeightHook != nil && len(weightMap) > 0 {
+		if tuned := EffectiveWeightHook(group, modelName, weightMap); len(tuned) > 0 {
+			weightMap = tuned
+			filtered := make(map[int]*Channel, len(tuned))
+			for id := range tuned {
+				if ch, ok := byID[id]; ok {
+					filtered[id] = ch
+				}
+			}
+			byID = filtered
 		}
 	}
-	if totalWeight == 0 {
-		// All channels in this layer have weight 0: distribute evenly.
-		// 该层全部为 0 权重：均匀分配。
-		return layer[rand.Intn(len(layer))], nil
+	if len(byID) == 0 {
+		logLatencyScoreSelection("failover", group, modelName, inCount, weightMap, 0)
+		return nil, ErrNoAvailableFailoverChannel
 	}
-	weight := rand.Intn(totalWeight)
-	for _, ch := range targets {
-		weight -= ch.GetWeight()
-		if weight < 0 {
+	if len(byID) == 1 {
+		for _, ch := range byID {
+			logLatencyScoreSelection("failover", group, modelName, inCount, weightMap, ch.Id)
 			return ch, nil
 		}
 	}
+	totalWeight := 0
+	for _, w := range weightMap {
+		totalWeight += w
+	}
+	if totalWeight <= 0 {
+		logLatencyScoreSelection("failover", group, modelName, inCount, weightMap, 0)
+		return nil, ErrNoAvailableFailoverChannel
+	}
+	weight := rand.Intn(totalWeight)
+	for id, w := range weightMap {
+		weight -= w
+		if weight < 0 {
+			logLatencyScoreSelection("failover", group, modelName, inCount, weightMap, id)
+			return byID[id], nil
+		}
+	}
+	logLatencyScoreSelection("failover", group, modelName, inCount, weightMap, 0)
 	return nil, ErrNoAvailableFailoverChannel
 }

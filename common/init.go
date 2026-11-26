@@ -80,6 +80,8 @@ func InitEnv() {
 
 	// Initialize variables from constants.go that were using environment variables
 	DebugEnabled = os.Getenv("DEBUG") == "true"
+	// SQL query dump is opt-in; DEBUG alone no longer enables GORM db.Debug().
+	SQLDebugEnabled = os.Getenv("SQL_DEBUG") == "true"
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 	NodeName = os.Getenv("NODE_NAME")
@@ -104,6 +106,8 @@ func InitEnv() {
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
+	RelayIdleConnTimeout = GetEnvOrDefault("RELAY_IDLE_CONN_TIMEOUT", 90)
+	RelayTLSHandshakeTimeout = GetEnvOrDefault("RELAY_TLS_HANDSHAKE_TIMEOUT", 10)
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")

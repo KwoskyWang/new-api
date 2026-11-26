@@ -512,11 +512,11 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		info.UserSetting = userSetting
 	}
 
-	// 初始化诊断计时：以"应用进入时间"为本地处理基准。
-	// 仅在全局总开关开启时创建诊断对象；全局关闭时保持 nil，避免任何额外分配
-	// （RelayTiming 的所有方法均做了 nil 保护，可安全跳过所有打点）。
-	// 渠道级开关在 ChannelMeta 初始化后，由 ShouldDiagnoseRelayTiming 二次把关。
-	if operation_setting.IsRelayTimingDiagnosticsEnabled() {
+	// 初始化诊断/打分计时：以"应用进入时间"为本地处理基准。
+	// 管理员诊断或渠道延时打分任一开启时创建；全关时保持 nil，避免额外分配。
+	// 渠道级诊断开关在 ChannelMeta 初始化后，由 ShouldDiagnoseRelayTiming 二次把关；
+	// 延时打分只依赖全局 channel_latency_setting.enabled。
+	if operation_setting.IsRelayTimingDiagnosticsEnabled() || operation_setting.IsChannelLatencyScoringEnabled() {
 		enterTime := common.GetContextKeyTime(c, constant.ContextKeyAppEnterTime)
 		if enterTime.IsZero() {
 			enterTime = startTime
@@ -684,6 +684,38 @@ func (info *RelayInfo) ShouldDiagnoseRelayTiming() bool {
 		return false
 	}
 	return info.ChannelSetting.RelayTimingDiagnosticsEnabled
+}
+
+// ShouldCollectUpstreamTiming 判定是否需要挂载 httptrace / 完整 attempt 计时。
+// 管理员诊断始终全量；延时打分按 TraceSamplePercent 采样（探测成败另有轻量路径）。
+func (info *RelayInfo) ShouldCollectUpstreamTiming() bool {
+	if info == nil {
+		return false
+	}
+	if info.ShouldDiagnoseRelayTiming() {
+		return true
+	}
+	return operation_setting.ShouldSampleChannelLatencyTrace()
+}
+
+// ShouldTrackLatencyOutcome 判定是否需要记录延时打分的成败（探测池），不依赖 httptrace 采样。
+func (info *RelayInfo) ShouldTrackLatencyOutcome() bool {
+	if info == nil {
+		return false
+	}
+	return operation_setting.IsChannelLatencyScoringEnabled()
+}
+
+// EnsureRelayTiming 保证 RelayTiming 非 nil（延时打分中途开启或重试换渠时兜底）。
+func (info *RelayInfo) EnsureRelayTiming() {
+	if info == nil || info.RelayTiming != nil {
+		return
+	}
+	enterTime := info.StartTime
+	if enterTime.IsZero() {
+		enterTime = time.Now()
+	}
+	info.RelayTiming = relaytiming.New(enterTime)
 }
 
 func (info *RelayInfo) SetFirstResponseTime() {

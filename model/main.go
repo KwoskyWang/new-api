@@ -177,7 +177,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 func InitDB() (err error) {
 	db, err := chooseDB("SQL_DSN", false)
 	if err == nil {
-		if common.DebugEnabled {
+		if common.SQLDebugEnabled {
 			db = db.Debug()
 		}
 		DB = db
@@ -213,11 +213,17 @@ func InitDB() (err error) {
 func InitLogDB() (err error) {
 	if os.Getenv("LOG_SQL_DSN") == "" {
 		LOG_DB = DB
-		return
+		// Shared DB: still ensure log-side tables exist (same as migrateLOGDB).
+		if common.IsMasterNode {
+			if err := migrateLOGDB(); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	db, err := chooseDB("LOG_SQL_DSN", true)
 	if err == nil {
-		if common.DebugEnabled {
+		if common.SQLDebugEnabled {
 			db = db.Debug()
 		}
 		LOG_DB = db
@@ -281,6 +287,7 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&ChannelLatencySample{},
 	)
 	if err != nil {
 		return err
@@ -330,6 +337,7 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+		{&ChannelLatencySample{}, "ChannelLatencySample"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -372,6 +380,11 @@ func migrateLOGDB() error {
 	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
 		return err
 	}
+	// Channel latency detail samples (sizes + timings only); create if missing.
+	if err = LOG_DB.AutoMigrate(&ChannelLatencySample{}); err != nil {
+		return err
+	}
+	common.SysLog("channel_latency_samples table ready")
 	return nil
 }
 

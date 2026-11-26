@@ -110,8 +110,9 @@ func TestGetRelayHttpClientForceHTTP1(t *testing.T) {
 	if forcedClient == originalClient || forcedClient.Transport == originalClient.Transport {
 		t.Fatal("forced HTTP/1 must use a separate client and transport")
 	}
-	if forcedClient.Timeout != originalClient.Timeout {
-		t.Fatal("forced client must retain the existing timeout")
+	// Whole-request Client.Timeout is intentionally unused (stream-safe); header wait lives on Transport.
+	if forcedClient.Timeout != 0 {
+		t.Fatalf("forced client Timeout = %s, want 0 (use ResponseHeaderTimeout instead)", forcedClient.Timeout)
 	}
 	protocol, firstAddress, _ := relayProtocolTestRequest(t, forcedClient, server.URL)
 	if protocol != 1 {
@@ -252,8 +253,8 @@ func TestForceHTTP1ClonedTransportDropsLeftoverH2(t *testing.T) {
 	if got := forcedTransport.TLSClientConfig.NextProtos; len(got) != 1 || got[0] != "http/1.1" {
 		t.Fatalf("forced transport ALPN = %v, want [http/1.1]", got)
 	}
-	if forcedClient.Timeout != baseClient.Timeout {
-		t.Fatalf("forced client timeout = %s, want %s", forcedClient.Timeout, baseClient.Timeout)
+	if forcedClient.Timeout != 0 {
+		t.Fatalf("forced client timeout = %s, want 0", forcedClient.Timeout)
 	}
 
 	// 原始 Transport 不应被就地修改。

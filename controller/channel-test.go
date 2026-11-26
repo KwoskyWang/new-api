@@ -57,7 +57,7 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
-func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool, maxTokensOverride ...uint) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
@@ -219,7 +219,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	request := buildTestRequest(testModel, endpointType, channel, isStream, maxTokensOverride...)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -679,8 +679,12 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
-func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
+func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool, maxTokensOverride ...uint) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
+	overrideMax := uint(0)
+	if len(maxTokensOverride) > 0 {
+		overrideMax = maxTokensOverride[0]
+	}
 
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
@@ -725,6 +729,9 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			maxTokens := uint(16)
 			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
 				maxTokens = 3000
+			}
+			if overrideMax > 0 {
+				maxTokens = overrideMax
 			}
 			req := &dto.GeneralOpenAIRequest{
 				Model:  model,
@@ -798,18 +805,63 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	if strings.HasPrefix(model, "o") {
-		testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
+		tok := uint(16)
+		if overrideMax > 0 {
+			tok = overrideMax
+		}
+		testRequest.MaxCompletionTokens = lo.ToPtr(tok)
 	} else if strings.Contains(model, "thinking") {
 		if !strings.Contains(model, "claude") {
-			testRequest.MaxTokens = lo.ToPtr(uint(50))
+			tok := uint(50)
+			if overrideMax > 0 {
+				tok = overrideMax
+			}
+			testRequest.MaxTokens = lo.ToPtr(tok)
+		} else if overrideMax > 0 {
+			testRequest.MaxTokens = lo.ToPtr(overrideMax)
 		}
 	} else if strings.Contains(model, "gemini") {
-		testRequest.MaxTokens = lo.ToPtr(uint(3000))
+		tok := uint(3000)
+		if overrideMax > 0 {
+			tok = overrideMax
+		}
+		testRequest.MaxTokens = lo.ToPtr(tok)
 	} else {
-		testRequest.MaxTokens = lo.ToPtr(uint(16))
+		tok := uint(16)
+		if overrideMax > 0 {
+			tok = overrideMax
+		}
+		testRequest.MaxTokens = lo.ToPtr(tok)
 	}
 
 	return testRequest
+}
+
+// ProbeChannelLatencyModel sends a max_tokens=1 connectivity probe for latency quarantine recovery.
+func ProbeChannelLatencyModel(channelID int, modelName string) (success bool, statusCode int, err error) {
+	modelName = strings.TrimSpace(modelName)
+	if channelID <= 0 || modelName == "" {
+		return false, 0, fmt.Errorf("channel_id and model are required")
+	}
+	channel, err := model.CacheGetChannel(channelID)
+	if err != nil {
+		channel, err = model.GetChannelById(channelID, true)
+		if err != nil {
+			return false, 0, err
+		}
+	}
+	if channel.Status != common.ChannelStatusEnabled {
+		return false, 0, fmt.Errorf("channel #%d is not enabled", channelID)
+	}
+	result := testChannel(channel, modelName, "", false, 1)
+	if result.localErr != nil {
+		code := http.StatusInternalServerError
+		if result.newAPIError != nil && result.newAPIError.StatusCode > 0 {
+			code = result.newAPIError.StatusCode
+		}
+		return false, code, nil
+	}
+	return true, http.StatusOK, nil
 }
 
 func TestChannel(c *gin.Context) {

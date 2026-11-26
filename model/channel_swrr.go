@@ -3,8 +3,17 @@ package model
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
+
+// EffectiveWeightHook optionally rewrites SWRR weight maps (e.g. latency score-only routing).
+// Registered from service to avoid model -> service import cycles.
+// When latency scoring is enabled, admin Weight values are ignored; keys are candidate IDs.
+var EffectiveWeightHook func(group, model string, weights map[int]int) map[int]int
 
 // Smooth Weighted Round-Robin (SWRR) channel selection.
 // 平滑加权轮询（SWRR）渠道选择。
@@ -139,6 +148,29 @@ func resetSWRRSelectors() {
 	globalSWRR.mu.Unlock()
 }
 
+// logLatencyScoreSelection logs candidate count, per-channel score weights, and the pick.
+func logLatencyScoreSelection(path, group, model string, inCount int, weights map[int]int, selectedID int) {
+	if !operation_setting.IsChannelLatencyScoringEnabled() {
+		return
+	}
+	ids := make([]int, 0, len(weights))
+	for id := range weights {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		w := weights[id]
+		parts = append(parts, fmt.Sprintf("#%d:w=%d(≈%.3f)", id, w, float64(w)/1000.0))
+	}
+	excluded := inCount - len(weights)
+	msg := fmt.Sprintf(
+		"latency-score [%s] group=%s model=%s in=%d after_soft=%d excluded=%d scores=[%s] selected=#%d",
+		path, group, model, inCount, len(weights), excluded, strings.Join(parts, ", "), selectedID,
+	)
+	common.SysLog(msg)
+}
+
 // selectChannelBySWRR selects one channel from targetChannels using SWRR.
 // All channels in targetChannels must share the same priority.
 // selectChannelBySWRR 使用 SWRR 从 targetChannels 中选择一个渠道。
@@ -148,7 +180,11 @@ func selectChannelBySWRR(group, model string, priority int64, targetChannels []*
 		return nil, fmt.Errorf("no channel found, group: %s, model: %s, priority: %d", group, model, priority)
 	}
 	if len(targetChannels) == 1 {
-		return targetChannels[0], nil
+		ch := targetChannels[0]
+		if operation_setting.IsChannelLatencyScoringEnabled() {
+			logLatencyScoreSelection("swrr", group, model, 1, map[int]int{ch.Id: 1000}, ch.Id)
+		}
+		return ch, nil
 	}
 
 	// Build effective weights.
@@ -166,47 +202,76 @@ func selectChannelBySWRR(group, model string, priority int64, targetChannels []*
 	// equal (weight 1) so the layer does not end up with zero available traffic.
 	// 兜底：如果该层所有渠道权重都为 0，则全部按相等(权重 1)处理，避免整层零流量
 	// 导致无渠道可用。
-	hasPositiveWeight := false
-	for _, ch := range targetChannels {
-		if ch.GetWeight() > 0 {
-			hasPositiveWeight = true
-			break
+	weights := make(map[int]int, len(targetChannels))
+	byID := make(map[int]*Channel, len(targetChannels))
+
+	if operation_setting.IsChannelLatencyScoringEnabled() {
+		// Score-only: ignore admin Weight; placeholder 1 is replaced by EffectiveWeightHook.
+		for _, ch := range targetChannels {
+			weights[ch.Id] = 1
+			byID[ch.Id] = ch
+		}
+	} else {
+		hasPositiveWeight := false
+		for _, ch := range targetChannels {
+			if ch.GetWeight() > 0 {
+				hasPositiveWeight = true
+				break
+			}
+		}
+		for _, ch := range targetChannels {
+			w := ch.GetWeight()
+			if hasPositiveWeight {
+				// Exclude zero-weight channels from the candidate pool.
+				if w <= 0 {
+					continue
+				}
+			} else {
+				// All weights are 0 in this layer: distribute evenly.
+				w = 1
+			}
+			weights[ch.Id] = w
+			byID[ch.Id] = ch
 		}
 	}
 
-	weights := make(map[int]int, len(targetChannels))
-	byID := make(map[int]*Channel, len(targetChannels))
-	for _, ch := range targetChannels {
-		w := ch.GetWeight()
-		if hasPositiveWeight {
-			// Exclude zero-weight channels from the candidate pool.
-			// 将 0 权重渠道从候选池中排除。
-			if w <= 0 {
-				continue
+	inCount := len(weights)
+	if EffectiveWeightHook != nil && len(weights) > 0 {
+		tuned := EffectiveWeightHook(group, model, weights)
+		if len(tuned) > 0 {
+			weights = tuned
+			filtered := make(map[int]*Channel, len(tuned))
+			for id := range tuned {
+				if ch, ok := byID[id]; ok {
+					filtered[id] = ch
+				}
 			}
-		} else {
-			// All weights are 0 in this layer: distribute evenly.
-			// 该层全部为 0 权重：均匀分配。
-			w = 1
+			byID = filtered
 		}
-		weights[ch.Id] = w
-		byID[ch.Id] = ch
 	}
 
 	if len(byID) == 1 {
 		for _, ch := range byID {
+			logLatencyScoreSelection("swrr", group, model, inCount, weights, ch.Id)
 			return ch, nil
 		}
+	}
+	if len(byID) == 0 {
+		logLatencyScoreSelection("swrr", group, model, inCount, weights, 0)
+		return nil, fmt.Errorf("channel not found, group: %s, model: %s, priority: %d", group, model, priority)
 	}
 
 	key := swrrSelectorKey{group: group, model: model, priority: priority}
 	id, ok := globalSWRR.pick(key, weights)
 	if !ok {
+		logLatencyScoreSelection("swrr", group, model, inCount, weights, 0)
 		return nil, fmt.Errorf("channel not found, group: %s, model: %s, priority: %d", group, model, priority)
 	}
 	ch, ok := byID[id]
 	if !ok {
+		logLatencyScoreSelection("swrr", group, model, inCount, weights, 0)
 		return nil, fmt.Errorf("channel not found, group: %s, model: %s, priority: %d", group, model, priority)
 	}
+	logLatencyScoreSelection("swrr", group, model, inCount, weights, ch.Id)
 	return ch, nil
 }

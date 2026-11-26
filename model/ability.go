@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -105,61 +106,68 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 
 func GetChannel(group string, model string, retry int) (*Channel, error) {
 	var abilities []Ability
+	var err error
 
-	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
-	if err != nil {
-		return nil, err
-	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+	if operation_setting.IsChannelLatencyScoringEnabled() {
+		// Score-only: ignore admin Priority/Weight; all enabled abilities for group+model.
+		err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).Find(&abilities).Error
+		if err != nil {
+			return nil, err
+		}
 	} else {
+		channelQuery, qErr := getChannelQuery(group, model, retry)
+		if qErr != nil {
+			return nil, qErr
+		}
 		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+		if err != nil {
+			return nil, err
+		}
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	channel := Channel{}
 	if len(abilities) > 0 {
-		// Select one ability within this (single) priority layer using smooth
-		// weighted round-robin, so that over N requests each channel is hit in
-		// exact proportion to its weight and disabling a channel redistributes
-		// traffic to the survivors by their remaining weights. All abilities here
-		// share the same priority (enforced by getChannelQuery).
-		// 使用平滑加权轮询在该（单一）优先级层内选择一个 ability，使 N 次请求内各渠道
-		// 命中次数严格符合权重比例，且关闭某渠道时流量按存活渠道剩余权重重新分配。
-		// 此处所有 ability 同优先级（由 getChannelQuery 保证）。
-		// Semantics match the cached path: weight 0 means "do not participate"; such
-		// channels are excluded as long as at least one channel in this layer has a
-		// positive weight. If every channel is weight 0, fall back to equal shares.
-		// 语义与缓存路径一致：权重 0 表示"不参与分流"；只要该层至少有一个渠道权重 > 0，
-		// 这些 0 权重渠道会被排除。若该层全部为 0 权重，则兜底为均等分配。
-		hasPositiveWeight := false
-		for _, ability_ := range abilities {
-			if ability_.Weight > 0 {
-				hasPositiveWeight = true
-				break
-			}
-		}
 		weights := make(map[int]int, len(abilities))
 		var priority int64
-		for _, ability_ := range abilities {
-			if ability_.Priority != nil {
-				priority = *ability_.Priority
+		if operation_setting.IsChannelLatencyScoringEnabled() {
+			for _, ability_ := range abilities {
+				weights[ability_.ChannelId] = 1
 			}
-			if hasPositiveWeight {
-				if ability_.Weight == 0 {
-					continue // excluded
+			priority = 0
+		} else {
+			hasPositiveWeight := false
+			for _, ability_ := range abilities {
+				if ability_.Weight > 0 {
+					hasPositiveWeight = true
+					break
 				}
-				weights[ability_.ChannelId] = int(ability_.Weight)
-			} else {
-				weights[ability_.ChannelId] = 1 // all zero: distribute evenly
+			}
+			for _, ability_ := range abilities {
+				if ability_.Priority != nil {
+					priority = *ability_.Priority
+				}
+				if hasPositiveWeight {
+					if ability_.Weight == 0 {
+						continue
+					}
+					weights[ability_.ChannelId] = int(ability_.Weight)
+				} else {
+					weights[ability_.ChannelId] = 1
+				}
+			}
+		}
+		inCount := len(weights)
+		if EffectiveWeightHook != nil && len(weights) > 0 {
+			if tuned := EffectiveWeightHook(group, model, weights); len(tuned) > 0 {
+				weights = tuned
 			}
 		}
 		id, ok := globalSWRR.pick(swrrSelectorKey{group: group, model: model, priority: priority}, weights)
 		if !ok {
+			logLatencyScoreSelection("ability", group, model, inCount, weights, 0)
 			return nil, nil
 		}
+		logLatencyScoreSelection("ability", group, model, inCount, weights, id)
 		channel.Id = id
 	} else {
 		return nil, nil

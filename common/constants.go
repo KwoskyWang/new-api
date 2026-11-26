@@ -110,6 +110,8 @@ var EmailLoginAuthServerList = []string{
 }
 
 var DebugEnabled bool
+// SQLDebugEnabled controls GORM per-query SQL logging (db.Debug()). Independent of DEBUG.
+var SQLDebugEnabled bool
 var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
@@ -168,10 +170,12 @@ var SyncFrequency int // unit is second
 var BatchUpdateEnabled = false
 var BatchUpdateInterval int
 
-var RelayTimeout int // unit is second
+var RelayTimeout int // unit is second; applied as ResponseHeaderTimeout (not whole-request Client.Timeout)
 
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
+var RelayIdleConnTimeout int     // seconds; idle keep-alive conn recycle
+var RelayTLSHandshakeTimeout int // seconds
 
 var GeminiSafetySetting string
 

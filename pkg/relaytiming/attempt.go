@@ -52,9 +52,11 @@ type Attempt struct {
 	connectCount    int    // TCP 拨号次数（可能多次）
 	dnsCount        int    // DNS 解析次数
 	protocol        string // 响应协议，如 "HTTP/1.1" / "HTTP/2.0"
-	errStage        string // 错误发生的阶段，见 ErrorStage* 常量
-	requestBodySize int64  // 应用层请求体字节数（-1 表示未知）
-	firstDataKind   string // 第一条有效 data 的类型命名，见 FirstDataKind* 常量
+	errStage         string // 错误发生的阶段，见 ErrorStage* 常量
+	requestBodySize  int64  // 应用层请求体字节数（-1 表示未知）
+	responseBodySize int64  // 应用层响应体已读字节数（-1 表示未知）
+	responseDoneTime time.Time
+	firstDataKind    string // 第一条有效 data 的类型命名，见 FirstDataKind* 常量
 }
 
 // 错误阶段常量。
@@ -77,11 +79,12 @@ const (
 
 func newAttempt(index, channelId, channelType int) *Attempt {
 	return &Attempt{
-		index:           index,
-		channelId:       channelId,
-		channelType:     channelType,
-		requestBodySize: -1,
-		firstDataKind:   FirstDataKindUnknown,
+		index:            index,
+		channelId:        channelId,
+		channelType:      channelType,
+		requestBodySize:  -1,
+		responseBodySize: -1,
+		firstDataKind:    FirstDataKindUnknown,
 	}
 }
 
@@ -162,6 +165,84 @@ func (a *Attempt) MarkFirstData(kind string) {
 		}
 	}
 	a.mu.Unlock()
+}
+
+// MarkResponseComplete 记录响应体读完（或出错结束）时刻与已读字节数。
+func (a *Attempt) MarkResponseComplete(respBytes int64) {
+	if a == nil {
+		return
+	}
+	now := time.Now()
+	a.mu.Lock()
+	if a.responseDoneTime.IsZero() {
+		a.responseDoneTime = now
+	}
+	if respBytes >= 0 {
+		a.responseBodySize = respBytes
+	}
+	a.mu.Unlock()
+}
+
+// AddResponseBytes increments response body byte counter (streaming).
+func (a *Attempt) AddResponseBytes(n int64) {
+	if a == nil || n <= 0 {
+		return
+	}
+	a.mu.Lock()
+	if a.responseBodySize < 0 {
+		a.responseBodySize = 0
+	}
+	a.responseBodySize += n
+	a.mu.Unlock()
+}
+
+// AttemptMetrics is a compact view used by latency scoring (not admin diagnostics).
+type AttemptMetrics struct {
+	Index            int
+	ChannelId        int
+	ChannelType      int
+	RequestBodySize  int64 // -1 unknown
+	ResponseBodySize int64 // -1 unknown
+	TSendMs          int64 // write request
+	TWaitMs          int64 // wait first response byte
+	TRecvMs          int64 // first byte / headers -> body complete
+	TTotalMs         int64 // request start -> body complete (or response headers if incomplete)
+	ErrorStage       string
+}
+
+// Metrics returns send/wait/recv totals for scoring. Missing phases stay 0.
+func (a *Attempt) Metrics() AttemptMetrics {
+	if a == nil {
+		return AttemptMetrics{RequestBodySize: -1, ResponseBodySize: -1}
+	}
+	snap := a.snapshot()
+	m := AttemptMetrics{
+		Index:            snap.Index,
+		ChannelId:        snap.ChannelId,
+		ChannelType:      snap.ChannelType,
+		RequestBodySize:  -1,
+		ResponseBodySize: -1,
+		ErrorStage:       snap.ErrorStage,
+	}
+	if snap.RequestBodySize != nil {
+		m.RequestBodySize = *snap.RequestBodySize
+	}
+	if snap.ResponseBodySize != nil {
+		m.ResponseBodySize = *snap.ResponseBodySize
+	}
+	if snap.WriteMs != nil {
+		m.TSendMs = *snap.WriteMs
+	}
+	if snap.WaitRespMs != nil {
+		m.TWaitMs = *snap.WaitRespMs
+	}
+	if snap.RecvBodyMs != nil {
+		m.TRecvMs = *snap.RecvBodyMs
+	}
+	if snap.TotalMs != nil {
+		m.TTotalMs = *snap.TotalMs
+	}
+	return m
 }
 
 // HasWroteRequest 返回是否已采集到 WroteRequest 事件（请求写出完成）。

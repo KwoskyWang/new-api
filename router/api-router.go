@@ -226,6 +226,10 @@ func SetApiRouter(router *gin.Engine) {
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())
 		{
+			channelRoute.GET("/latency/scores", controller.GetChannelLatencyScores)
+			channelRoute.GET("/latency/window", controller.GetChannelLatencyWindow)
+			channelRoute.GET("/latency/details", controller.GetChannelLatencyDetails)
+			channelRoute.POST("/latency/recompute", controller.ForceChannelLatencyRecompute)
 			channelRoute.GET("/", controller.GetAllChannels)
 			channelRoute.GET("/search", controller.SearchChannels)
 			channelRoute.GET("/models", controller.ChannelListModels)
